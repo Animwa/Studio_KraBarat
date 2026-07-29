@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycby3fnwYISAvnNsExdktfilXvQfPfg_DEv7uKngv_WPOL2lKF9ftXTLeVnQZIvgm0-eGrQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwPZmjduhsgSd-_JUJ6j-hI189mugNDQ_1j3otSXut2MWyKBtQER11t-xAzU7XK0ClwQQ/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -38,13 +38,14 @@ function getNamaHari(dateString) {
   return days[dateObj.getDay()] || "-";
 }
 
-// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Senin, 27 Juli 2026")
+// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
 function formatTanggalIndo(dateString) {
   if (!dateString) return "-";
-  const parts = dateString.split('-');
+  const cleanDate = dateString.substring(0, 10);
+  const parts = cleanDate.split('-');
   if (parts.length !== 3) return dateString;
 
-  const year = parts[0];
+  const year = parseInt(parts[0], 10);
   const monthIdx = parseInt(parts[1], 10) - 1;
   const dayNum = parseInt(parts[2], 10);
 
@@ -53,7 +54,7 @@ function formatTanggalIndo(dateString) {
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
   ];
 
-  const dateObj = new Date(parseInt(year, 10), monthIdx, dayNum);
+  const dateObj = new Date(year, monthIdx, dayNum);
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   
   const dayName = days[dateObj.getDay()];
@@ -384,7 +385,7 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // Indikator Status: "Tersimpan" / "Draf" / "Belum Disimpan"
+      // Status Indikator Badge
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
@@ -453,6 +454,7 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
+// LOGIKA MUTEX (HANYA 1 PILIHAN TERCENTANG)
 function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => String(k.id) === String(idKelompok));
   if (!item) return;
@@ -569,7 +571,7 @@ function renderRekapHarian() {
       `;
     }).join('');
 
-    // Format Tanggal Baku Indonesia Tanpa Kata Berulang
+    // Tanggal Bahasa Indonesia Bebas Bug
     const formattedDateText = formatTanggalIndo(session.tanggal);
 
     const cardHtml = `
@@ -577,8 +579,9 @@ function renderRekapHarian() {
         <div class="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
             <h3 class="font-bold text-base text-slate-900 leading-snug">${session.nama_kegiatan}</h3>
-            <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i> ${formattedDateText}
+            <p class="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i>
+              <span class="font-medium text-slate-600">${formattedDateText}</span>
             </p>
           </div>
           <div class="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-right">
