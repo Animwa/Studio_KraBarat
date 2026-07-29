@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzj_HwIyBsXVhfB6288wPvIfZsVZf1421JChoSmvHNgexEKmBLg-rsXVYPfUa-mIYan6g/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbx_PLACEHOLDER_YOUR_DEPLOYMENT_ID/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -10,7 +10,6 @@ let localPresensiData = [];
 let rawRekapData = [];
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Set default tanggal hari ini di input tanggal presensi
   const todayStr = new Date().toISOString().substring(0, 10);
   const dateInput = document.getElementById("inputTanggalPresensi");
   if (dateInput) {
@@ -316,7 +315,12 @@ async function fetchPresensi(selectedDate) {
     const json = await res.json();
 
     if (json.status === "success") {
-      localPresensiData = json.data;
+      // Set lokal presensi + simpan status perubahan (is_dirty)
+      localPresensiData = json.data.map(item => ({
+        ...item,
+        is_dirty: false // Default sama dengan server
+      }));
+
       document.getElementById("inputNamaKegiatanPresensi").value = json.kegiatan_title || "";
       renderPresensi();
     }
@@ -346,19 +350,30 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
+      // Status Indikator: "Tersimpan" vs "Draf"
+      let statusBadgeHtml = "";
+      if (item.is_dirty) {
+        statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
+      } else if (item.is_saved) {
+        statusBadgeHtml = `<span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">Tersimpan</span>`;
+      } else {
+        statusBadgeHtml = `<span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200">Belum Disimpan</span>`;
+      }
+
       const rowHtml = `
         <div class="kelompok-card">
-          <!-- NAMA KELOMPOK & BADGE REKOMENDASI -->
-          <div class="flex items-center gap-2">
+          <!-- NAMA KELOMPOK, STATUS TERSIMPAN, & REKOMENDASI -->
+          <div class="flex items-center gap-2 flex-wrap">
             ${item.is_recommended ? `
             <span title="Rekomendasi Prioritas (Jumlah Penyapaan Terendah)" class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
               <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-500"></i> Rekomendasi
             </span>
             ` : ''}
             <span class="text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
+            ${statusBadgeHtml}
           </div>
 
-          <!-- CHECKBOX & TOTAL PENYAPAAN KOTAK BESAR BERWARNA -->
+          <!-- CHECKBOX (MUTEX) & TOTAL PENYAPAAN -->
           <div class="flex items-center gap-4 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
             
             <div class="flex items-center gap-4">
@@ -374,7 +389,7 @@ function renderPresensi() {
                 <span class="text-xs font-semibold text-slate-700">Sapa</span>
               </label>
 
-              <!-- CHECKBOX 2: BELUM SAPA (DEFAULT TERCENTANG) -->
+              <!-- CHECKBOX 2: BELUM SAPA (DEFAULT TRUE) -->
               <label class="flex items-center gap-1.5 cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -387,7 +402,7 @@ function renderPresensi() {
               </label>
             </div>
 
-            <!-- KOTAK TOTAL PENYAPAAN LEBIH BESAR & BERWARNA -->
+            <!-- TOTAL PENYAPAAN -->
             <div class="flex flex-col items-end">
               <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Penyapaan</span>
               <div class="badge-total-penyapaan">
@@ -405,18 +420,20 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
+// LOGIKA MUTEX: HANYA SATU CHECKBOX TERCENTANG KETIKA DIKLIK
 function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => k.id === idKelompok);
   if (!item) return;
 
   if (targetType === 'sapa') {
     item.status_sapa = true;
-    item.status_belum_sapa = false;
+    item.status_belum_sapa = false; // Otomatis lepas centang
   } else if (targetType === 'belum_sapa') {
-    item.status_sapa = false;
+    item.status_sapa = false; // Otomatis lepas centang
     item.status_belum_sapa = true;
   }
 
+  item.is_dirty = true; // Tandai sebagai Draf belum disimpan
   renderPresensi();
 }
 
@@ -451,7 +468,7 @@ async function simpanSemuaPenyapaan() {
     const json = await res.json();
 
     if (json.status === "success") {
-      alert("✅ Data presensi penyapaan berhasil disimpan ke Google Sheets!");
+      alert("✅ Data presensi penyapaan berhasil disimpan & diperbarui di Google Sheets!");
       fetchPresensi(targetDate);
     } else {
       alert("Gagal menyimpan: " + json.message);
@@ -465,7 +482,7 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
-// REKAP HARIAN LOGIC (GROUPED BY NAMA KEGIATAN & TANGGAL)
+// REKAP HARIAN LOGIC
 async function fetchRekapHarian() {
   const loading = document.getElementById("loadingRekap");
   const container = document.getElementById("rekapContainer");
@@ -505,7 +522,6 @@ function renderRekapHarian() {
     const disapaList = session.kelompok_disapa || [];
     const totalDisapa = disapaList.length;
 
-    // Kelompokkan per desa dalam kegiatan ini
     const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
     const desaHtmlList = desas.map(desa => {
       const items = disapaList.filter(d => d.desa === desa);
