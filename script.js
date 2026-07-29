@@ -1,12 +1,12 @@
 /**
- * FRONTEND JAVASCRIPT LOGIC (REVISED - NO INFAQ IN KEGIATAN)
+ * FRONTEND JAVASCRIPT LOGIC (WITH RECOMENDATION & ACCUMULATED TOTAL)
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbySi9G3lEz1s3HFt64fRt_2gPJxGHWIFyPvSwBkX4SUre_EA6RyOGoVFHiEGvcm5k31jQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwBAe3zGg4c3Lj4Hjb1dGF7DZiSjh2Sfb0NlXVX44jmqEh84FylvUx7GOL7E-VXBJ9DMw/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
-let globalPresensiData = [];
+let localPresensiData = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   checkAdminStatus();
@@ -15,7 +15,13 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
-// ROLE & AUTH
+function getNamaHari(dateString) {
+  if (!dateString || dateString === "-") return "-";
+  const date = new Date(dateString);
+  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  return days[date.getDay()] || "-";
+}
+
 function checkAdminStatus() {
   const savedRole = localStorage.getItem("os_role");
   isAdmin = savedRole === "admin";
@@ -48,7 +54,7 @@ function toggleAuthModal() {
     updateRoleUI();
     renderKegiatan();
     renderPresensi();
-    alert("Anda telah keluar dari mode Admin.");
+    alert("Keluar dari mode Admin.");
   } else {
     document.getElementById("modalAuth").classList.remove("hidden");
     document.getElementById("inputPin").value = "";
@@ -76,11 +82,10 @@ async function handleLogin(e) {
       alert(result.message || "PIN Salah!");
     }
   } catch (err) {
-    alert("Gagal menghubungi server. Pastikan API_URL sudah benar.");
+    alert("Gagal koneksi server.");
   }
 }
 
-// TAB NAVIGATION
 function switchTab(tabName) {
   const berandaTab = document.getElementById("tabBeranda");
   const presensiTab = document.getElementById("tabPresensi");
@@ -104,20 +109,18 @@ function switchTab(tabName) {
 async function fetchKegiatan() {
   const loading = document.getElementById("loadingKegiatan");
   const list = document.getElementById("kegiatanList");
-
   loading.classList.remove("hidden");
   list.classList.add("hidden");
 
   try {
     const res = await fetch(`${API_URL}?action=getKegiatan`);
     const json = await res.json();
-
     if (json.status === "success") {
       globalKegiatanData = json.data;
       renderKegiatan();
     }
   } catch (err) {
-    console.error("Error fetching kegiatan:", err);
+    console.error(err);
   } finally {
     loading.classList.add("hidden");
     list.classList.remove("hidden");
@@ -129,7 +132,7 @@ function renderKegiatan() {
   container.innerHTML = "";
 
   if (globalKegiatanData.length === 0) {
-    container.innerHTML = `<div class="col-span-full text-center py-8 text-slate-400">Belum ada data kegiatan.</div>`;
+    container.innerHTML = `<div class="col-span-full text-center py-8 text-slate-400">Belum ada kegiatan.</div>`;
     return;
   }
 
@@ -154,23 +157,14 @@ function renderKegiatan() {
             </div>
             ` : ''}
           </div>
-
           <div class="space-y-1.5 text-xs text-slate-500 mb-4">
-            <div class="flex items-center gap-2">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i>
-              <span>${item.hari_tanggal || '-'}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i>
-              <span>${item.jam || '-'}</span>
-            </div>
+            <div class="flex items-center gap-2"><i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i><span>${getNamaHari(item.hari_tanggal)}, ${item.hari_tanggal || '-'}</span></div>
+            <div class="flex items-center gap-2"><i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i><span>${item.jam || '-'}</span></div>
           </div>
-
           <div class="space-y-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
             <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Materi Pembahasan</p>
             <ul class="space-y-1 list-disc list-inside">${materiItems}</ul>
           </div>
-
           <div class="space-y-1">
             <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Penyampai</p>
             <div class="flex flex-wrap gap-1">${penyampaiItems}</div>
@@ -180,7 +174,6 @@ function renderKegiatan() {
     `;
     container.innerHTML += cardHtml;
   });
-
   lucide.createIcons();
 }
 
@@ -221,7 +214,6 @@ function openModalKegiatan(isEdit = false) {
   } else {
     document.getElementById("modalKegiatanTitle").innerText = "Edit Data Kegiatan";
   }
-
   document.getElementById("modalKegiatan").classList.remove("hidden");
 }
 
@@ -239,80 +231,46 @@ function editKegiatan(id) {
   document.getElementById("inputHariTanggal").value = item.hari_tanggal;
   document.getElementById("inputJam").value = item.jam;
 
-  if (item.materi_list && item.materi_list.length > 0) {
-    item.materi_list.forEach(m => addMateriInput(m));
-  } else {
-    addMateriInput();
-  }
+  if (item.materi_list && item.materi_list.length > 0) item.materi_list.forEach(m => addMateriInput(m));
+  else addMateriInput();
 
-  if (item.penyampai_list && item.penyampai_list.length > 0) {
-    item.penyampai_list.forEach(p => addPenyampaiInput(p));
-  } else {
-    addPenyampaiInput();
-  }
+  if (item.penyampai_list && item.penyampai_list.length > 0) item.penyampai_list.forEach(p => addPenyampaiInput(p));
+  else addPenyampaiInput();
 }
 
 async function saveKegiatan(e) {
   e.preventDefault();
-
-  const materiInputs = document.querySelectorAll(".materi-input");
-  const materi_list = Array.from(materiInputs).map(i => i.value.trim()).filter(v => v !== "");
-
-  const penyampaiInputs = document.querySelectorAll(".penyampai-input");
-  const penyampai_list = Array.from(penyampaiInputs).map(i => i.value.trim()).filter(v => v !== "");
+  const materi_list = Array.from(document.querySelectorAll(".materi-input")).map(i => i.value.trim()).filter(v => v !== "");
+  const penyampai_list = Array.from(document.querySelectorAll(".penyampai-input")).map(i => i.value.trim()).filter(v => v !== "");
 
   const payload = {
     id: document.getElementById("kegiatanId").value || null,
     kegiatan: document.getElementById("inputKegiatan").value,
     hari_tanggal: document.getElementById("inputHariTanggal").value,
     jam: document.getElementById("inputJam").value,
-    materi_list: materi_list,
-    penyampai_list: penyampai_list
+    materi_list, penyampai_list
   };
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ action: "saveKegiatan", payload: payload })
-    });
+    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "saveKegiatan", payload }) });
     const json = await res.json();
-
-    if (json.status === "success") {
-      closeModalKegiatan();
-      fetchKegiatan();
-    } else {
-      alert("Gagal menyimpan: " + json.message);
-    }
-  } catch (err) {
-    alert("Terjadi kesalahan sistem.");
-  }
+    if (json.status === "success") { closeModalKegiatan(); fetchKegiatan(); }
+  } catch (err) { alert("Terjadi kesalahan."); }
 }
 
 async function deleteKegiatan(id) {
-  if (!confirm("Apakah Anda yakin ingin menghapus kegiatan ini?")) return;
-
+  if (!confirm("Hapus kegiatan ini?")) return;
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({ action: "deleteKegiatan", payload: { id: id } })
-    });
+    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "deleteKegiatan", payload: { id } }) });
     const json = await res.json();
-
-    if (json.status === "success") {
-      fetchKegiatan();
-    } else {
-      alert(json.message);
-    }
-  } catch (err) {
-    alert("Gagal menghapus data.");
-  }
+    if (json.status === "success") fetchKegiatan();
+  } catch (err) { alert("Gagal menghapus."); }
 }
 
 // PRESENSI KELOMPOK LOGIC
 async function fetchPresensi() {
   const loading = document.getElementById("loadingPresensi");
   const grid = document.getElementById("presensiGrid");
-
   loading.classList.remove("hidden");
   grid.classList.add("hidden");
 
@@ -321,12 +279,19 @@ async function fetchPresensi() {
     const json = await res.json();
 
     if (json.status === "success") {
-      globalPresensiData = json.data;
+      localPresensiData = json.data.map(item => ({
+        ...item,
+        input_penyamaan_baru: 0 // Inisialisasi tambahan nominal hari ini
+      }));
+
+      document.getElementById("displayJudulKegiatan").innerText = json.kegiatan_title || "Presensi Sapa Harian";
       document.getElementById("currentDateDisplay").innerText = json.tanggal || "-";
+      document.getElementById("displayNamaHari").innerText = getNamaHari(json.tanggal);
+
       renderPresensi();
     }
   } catch (err) {
-    console.error("Error fetching presensi:", err);
+    console.error(err);
   } finally {
     loading.classList.add("hidden");
     grid.classList.remove("hidden");
@@ -340,7 +305,7 @@ function renderPresensi() {
     const container = document.getElementById(`container${desa}`);
     container.innerHTML = "";
 
-    const kelompokInDesa = globalPresensiData.filter(k => k.desa === desa);
+    const kelompokInDesa = localPresensiData.filter(k => k.desa === desa);
 
     if (kelompokInDesa.length === 0) {
       container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Belum ada kelompok di ${desa}</p>`;
@@ -348,32 +313,62 @@ function renderPresensi() {
     }
 
     kelompokInDesa.forEach(item => {
-      const isChecked = item.status_sapa;
-      const formattedTotal = Number(item.total_penyamaan || 0).toLocaleString("id-ID");
+      const formattedTotal = Number(item.total_penyamaan + (item.input_penyamaan_baru || 0)).toLocaleString("id-ID");
 
       const rowHtml = `
-        <div class="flex items-center justify-between p-3 rounded-lg border ${isChecked ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'} transition">
-          <div class="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              ${isChecked ? 'checked' : ''} 
-              ${!isAdmin ? 'disabled' : ''}
-              onchange="handleCheckSapa('${item.id}', this.checked, ${item.total_penyamaan})"
-              class="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed" 
-            />
-            <span class="text-sm font-semibold ${isChecked ? 'text-emerald-900' : 'text-slate-700'}">${item.nama_kelompok}</span>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border bg-white border-slate-200 gap-2 transition hover:border-slate-300">
+          
+          <!-- NAMA KELOMPOK & REKOMENDASI -->
+          <div class="flex items-center gap-2">
+            ${item.is_recommended ? `
+            <span title="Rekomendasi Prioritas (Akumulasi Penyamaan Terendah)" class="flex items-center gap-1 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+              <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-500"></i> Rekomendasi
+            </span>
+            ` : ''}
+            <span class="text-xs sm:text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
           </div>
 
-          <div class="flex items-center gap-2">
-            <div class="bg-white border border-slate-200 rounded px-2.5 py-1 flex items-center gap-1 shadow-2xs">
-              <span class="text-[10px] text-slate-400 font-medium">Rp</span>
-              <span class="text-xs font-bold text-slate-800">${formattedTotal}</span>
+          <!-- KONTROL STATUS SAPA & NOMINAL -->
+          <div class="flex items-center gap-2 flex-wrap">
+            
+            <!-- SAPA 1 -->
+            <div class="flex flex-col">
+              <span class="text-[9px] text-slate-400 font-bold uppercase">Sapa 1</span>
+              <select 
+                ${!isAdmin ? 'disabled' : ''} 
+                onchange="updateLocalStatusDraft('${item.id}', 1, this.value)"
+                class="text-xs font-medium px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none disabled:opacity-75">
+                <option value="Belum Sapa" ${item.status_sapa_1 === 'Belum Sapa' ? 'selected' : ''}>Belum Sapa</option>
+                <option value="Sapa" ${item.status_sapa_1 === 'Sapa' ? 'selected' : ''}>Sapa</option>
+              </select>
             </div>
-            ${isAdmin ? `
-            <button onclick="editTotalPenyamaan('${item.id}', ${item.status_sapa}, ${item.total_penyamaan})" class="text-slate-400 hover:text-blue-600 p-1">
-              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
-            </button>
-            ` : ''}
+
+            <!-- SAPA 2 -->
+            <div class="flex flex-col">
+              <span class="text-[9px] text-slate-400 font-bold uppercase">Sapa 2</span>
+              <select 
+                ${!isAdmin ? 'disabled' : ''} 
+                onchange="updateLocalStatusDraft('${item.id}', 2, this.value)"
+                class="text-xs font-medium px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none disabled:opacity-75">
+                <option value="Belum Sapa" ${item.status_sapa_2 === 'Belum Sapa' ? 'selected' : ''}>Belum Sapa</option>
+                <option value="Sapa" ${item.status_sapa_2 === 'Sapa' ? 'selected' : ''}>Sapa</option>
+              </select>
+            </div>
+
+            <!-- TOTAL AKUMULASI PENYAMAAN -->
+            <div class="flex flex-col">
+              <span class="text-[9px] text-slate-400 font-bold uppercase">Total Penyamaan</span>
+              <div class="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 flex items-center gap-1">
+                <span class="text-[10px] text-slate-400 font-medium">Rp</span>
+                <span class="text-xs font-bold text-slate-800">${formattedTotal}</span>
+                ${isAdmin ? `
+                <button onclick="editLocalTotalDraft('${item.id}')" class="text-slate-400 hover:text-blue-600 ml-1">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                </button>
+                ` : ''}
+              </div>
+            </div>
+
           </div>
         </div>
       `;
@@ -382,6 +377,70 @@ function renderPresensi() {
   });
 
   lucide.createIcons();
+}
+
+function updateLocalStatusDraft(idKelompok, sapaNum, value) {
+  const item = localPresensiData.find(k => k.id === idKelompok);
+  if (item) {
+    if (sapaNum === 1) item.status_sapa_1 = value;
+    if (sapaNum === 2) item.status_sapa_2 = value;
+  }
+}
+
+function editLocalTotalDraft(idKelompok) {
+  const item = localPresensiData.find(k => k.id === idKelompok);
+  if (!item) return;
+
+  const inputTambahStr = prompt(`Tambah Nominal Penyamaan Hari Ini untuk "${item.nama_kelompok}" (Rp):`, 0);
+  if (inputTambahStr === null) return;
+
+  const nominalTambah = Number(inputTambahStr);
+  if (isNaN(nominalTambah)) {
+    alert("Nominal harus berupa angka valid.");
+    return;
+  }
+
+  item.input_penyamaan_baru = nominalTambah;
+  renderPresensi();
+}
+
+async function simpanSemuaPenyapaan() {
+  const btn = document.getElementById("btnSimpanPenyapaan");
+  const originalText = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="animate-spin">⏳</span> Menyimpan...`;
+
+  const payload = localPresensiData.map(item => ({
+    id_kelompok: item.id,
+    status_sapa_1: item.status_sapa_1,
+    status_sapa_2: item.status_sapa_2,
+    input_penyamaan_baru: item.input_penyamaan_baru || 0
+  }));
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "saveBatchPresensiSapa",
+        payload: payload
+      })
+    });
+    const json = await res.json();
+
+    if (json.status === "success") {
+      alert("✅ Data penyapaan berhasil disimpan ke Google Sheets!");
+      fetchPresensi();
+    } else {
+      alert("Gagal menyimpan: " + json.message);
+    }
+  } catch (err) {
+    alert("Terjadi kesalahan koneksi saat menyimpan.");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    lucide.createIcons();
+  }
 }
 
 function openModalTambahKelompok(desaName) {
@@ -418,64 +477,5 @@ async function saveKelompok(e) {
     }
   } catch (err) {
     alert("Gagal menambahkan kelompok.");
-  }
-}
-
-async function handleCheckSapa(idKelompok, newCheckedStatus, currentTotal) {
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "updatePresensiSapa",
-        payload: {
-          id_kelompok: idKelompok,
-          status_sapa: newCheckedStatus,
-          total_penyamaan: currentTotal
-        }
-      })
-    });
-    const json = await res.json();
-
-    if (json.status === "success") {
-      fetchPresensi();
-    } else {
-      alert("Gagal memperbarui status sapa.");
-    }
-  } catch (err) {
-    alert("Terjadi kesalahan koneksi.");
-  }
-}
-
-async function editTotalPenyamaan(idKelompok, currentStatus, currentTotal) {
-  const newTotalStr = prompt("Masukkan nominal Total Penyamaan yang baru (Rp):", currentTotal);
-  if (newTotalStr === null) return;
-
-  const newTotal = Number(newTotalStr);
-  if (isNaN(newTotal)) {
-    alert("Nominal harus berupa angka valid.");
-    return;
-  }
-
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        action: "updatePresensiSapa",
-        payload: {
-          id_kelompok: idKelompok,
-          status_sapa: currentStatus,
-          total_penyamaan: newTotal
-        }
-      })
-    });
-    const json = await res.json();
-
-    if (json.status === "success") {
-      fetchPresensi();
-    } else {
-      alert("Gagal memperbarui total penyamaan.");
-    }
-  } catch (err) {
-    alert("Terjadi kesalahan koneksi.");
   }
 }
