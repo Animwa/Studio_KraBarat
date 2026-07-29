@@ -6,8 +6,8 @@
 .sapa-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.35rem;
+  height: 1.35rem;
   border: 2px solid #cbd5e1;
   border-radius: 0.375rem;
   outline: none;
@@ -24,8 +24,8 @@
 
 .sapa-checkbox:checked::before {
   content: "";
-  width: 0.65rem;
-  height: 0.65rem;
+  width: 0.7rem;
+  height: 0.7rem;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
   background-color: white;
 }
@@ -35,15 +35,16 @@
   cursor: not-allowed;
 }
 
-/* Responsive Card */
+/* Responsive Card Kelompok */
 .kelompok-card {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
 
 @media (min-width: 640px) {
@@ -56,5 +57,17 @@
 
 .kelompok-card:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Box Total Penyapaan Lebih Besar & Berwarna */
+.badge-total-penyapaan {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1.5px solid #93c5fd;
+  color: #1e40af;
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.625rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
 }
