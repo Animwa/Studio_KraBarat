@@ -1,8 +1,8 @@
 /**
- * FRONTEND JAVASCRIPT LOGIC
+ * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxzsyfYy9qm2Uk43aPMBKx2yxkJY8JjtQ8D3GNyeIAl_4frdEirgmpIYEJiezVfdkRJeQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwUE9zUVroVjTaykoeSNp0PAK_GhSzVNMEL7kwkrCVJjZR5w2vfKEt8RU1H3SoFI6MRgQ/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -23,11 +23,36 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
+// Format Hari (Nama Hari Saja)
 function getNamaHari(dateString) {
   if (!dateString) return "-";
-  const date = new Date(dateString);
+  const date = new Date(dateString + 'T00:00:00');
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   return days[date.getDay()] || "-";
+}
+
+// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
+function formatTanggalIndo(dateString) {
+  if (!dateString) return "-";
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return dateString;
+
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const dayNum = parseInt(parts[2], 10);
+
+  const months = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+
+  const dateObj = new Date(year, monthIdx, dayNum);
+  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  
+  const dayName = days[dateObj.getDay()];
+  const monthName = months[monthIdx];
+
+  return `${dayName}, ${dayNum} ${monthName} ${year}`;
 }
 
 function updateNamaHariDisplay(dateString) {
@@ -192,7 +217,7 @@ function renderKegiatan() {
             ` : ''}
           </div>
           <div class="space-y-1.5 text-xs text-slate-500 mb-4">
-            <div class="flex items-center gap-2"><i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i><span>${getNamaHari(item.hari_tanggal)}, ${item.hari_tanggal || '-'}</span></div>
+            <div class="flex items-center gap-2"><i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i><span>${formatTanggalIndo(item.hari_tanggal)}</span></div>
             <div class="flex items-center gap-2"><i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i><span>${item.jam || '-'}</span></div>
           </div>
           <div class="space-y-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -315,10 +340,10 @@ async function fetchPresensi(selectedDate) {
     const json = await res.json();
 
     if (json.status === "success") {
-      // Set lokal presensi + simpan status perubahan (is_dirty)
       localPresensiData = json.data.map(item => ({
         ...item,
-        is_dirty: false // Default sama dengan server
+        id: String(item.id),
+        is_dirty: false
       }));
 
       document.getElementById("inputNamaKegiatanPresensi").value = json.kegiatan_title || "";
@@ -350,7 +375,7 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // Status Indikator: "Tersimpan" vs "Draf"
+      // Status Indikator
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
@@ -360,9 +385,10 @@ function renderPresensi() {
         statusBadgeHtml = `<span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200">Belum Disimpan</span>`;
       }
 
+      const safeId = String(item.id).replace(/'/g, "\\'");
+
       const rowHtml = `
         <div class="kelompok-card">
-          <!-- NAMA KELOMPOK, STATUS TERSIMPAN, & REKOMENDASI -->
           <div class="flex items-center gap-2 flex-wrap">
             ${item.is_recommended ? `
             <span title="Rekomendasi Prioritas (Jumlah Penyapaan Terendah)" class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
@@ -373,9 +399,7 @@ function renderPresensi() {
             ${statusBadgeHtml}
           </div>
 
-          <!-- CHECKBOX (MUTEX) & TOTAL PENYAPAAN -->
           <div class="flex items-center gap-4 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
-            
             <div class="flex items-center gap-4">
               <!-- CHECKBOX 1: SAPA -->
               <label class="flex items-center gap-1.5 cursor-pointer">
@@ -383,7 +407,7 @@ function renderPresensi() {
                   type="checkbox" 
                   ${isSapa ? 'checked' : ''} 
                   ${!isAdmin ? 'disabled' : ''}
-                  onchange="toggleLocalSapaStatus('${item.id}', 'sapa')"
+                  onchange="toggleLocalSapaStatus('${safeId}', 'sapa')"
                   class="sapa-checkbox" 
                 />
                 <span class="text-xs font-semibold text-slate-700">Sapa</span>
@@ -395,7 +419,7 @@ function renderPresensi() {
                   type="checkbox" 
                   ${isBelumSapa ? 'checked' : ''} 
                   ${!isAdmin ? 'disabled' : ''}
-                  onchange="toggleLocalSapaStatus('${item.id}', 'belum_sapa')"
+                  onchange="toggleLocalSapaStatus('${safeId}', 'belum_sapa')"
                   class="sapa-checkbox" 
                 />
                 <span class="text-xs font-semibold text-slate-700">Belum Sapa</span>
@@ -420,20 +444,20 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
-// LOGIKA MUTEX: HANYA SATU CHECKBOX TERCENTANG KETIKA DIKLIK
+// LOGIKA MUTEX (HANYA 1 PILIHAN TERCENTANG & UPDATE DRAF)
 function toggleLocalSapaStatus(idKelompok, targetType) {
-  const item = localPresensiData.find(k => k.id === idKelompok);
+  const item = localPresensiData.find(k => String(k.id) === String(idKelompok));
   if (!item) return;
 
   if (targetType === 'sapa') {
     item.status_sapa = true;
-    item.status_belum_sapa = false; // Otomatis lepas centang
+    item.status_belum_sapa = false;
   } else if (targetType === 'belum_sapa') {
-    item.status_sapa = false; // Otomatis lepas centang
+    item.status_sapa = false;
     item.status_belum_sapa = true;
   }
 
-  item.is_dirty = true; // Tandai sebagai Draf belum disimpan
+  item.is_dirty = true;
   renderPresensi();
 }
 
@@ -482,7 +506,7 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
-// REKAP HARIAN LOGIC
+// REKAP HARIAN LOGIC (FORMAT TANGGAL BAKU INDONESIA)
 async function fetchRekapHarian() {
   const loading = document.getElementById("loadingRekap");
   const container = document.getElementById("rekapContainer");
@@ -537,15 +561,20 @@ function renderRekapHarian() {
       `;
     }).join('');
 
+    // Menggunakan formatTanggalIndo() untuk tampilan tanggal yang rapi
+    const formattedDateText = formatTanggalIndo(session.tanggal);
+
     const cardHtml = `
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div class="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
             <h3 class="font-bold text-base text-slate-900 leading-snug">${session.nama_kegiatan}</h3>
-            <p class="text-xs text-slate-500 mt-0.5"><i data-lucide="calendar" class="w-3.5 h-3.5 inline text-blue-600"></i> ${getNamaHari(session.tanggal)}, ${session.tanggal}</p>
+            <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i> ${formattedDateText}
+            </p>
           </div>
-          <div class="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1 rounded-lg text-right">
-            <span class="text-lg font-extrabold">${totalDisapa}</span>
+          <div class="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-right">
+            <span class="text-base sm:text-lg font-extrabold">${totalDisapa}</span>
             <span class="text-xs font-semibold"> Kelompok Disapa</span>
           </div>
         </div>
