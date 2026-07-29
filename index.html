@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OS Studio Daerah Karanganyar Barat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .tab-active {
+      border-bottom: 3px solid #2563eb;
+      color: #2563eb;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="bg-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 bg-blue-600 text-white rounded-lg shadow-sm">
+            <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900">OS Studio</h1>
+            <p class="text-xs text-slate-500 font-medium">Daerah Karanganyar Barat</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <span id="roleBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+            <span>Viewer</span>
+          </span>
+          <button id="authBtn" onclick="toggleAuthModal()" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-medium transition shadow-sm">
+            <i data-lucide="lock" class="w-4 h-4"></i>
+            <span id="authBtnText">Login Admin</span>
+          </button>
+        </div>
+      </div>
+
+      <nav class="flex space-x-8 border-t border-slate-100">
+        <button id="tabBerandaBtn" onclick="switchTab('beranda')" class="tab-active py-3 px-1 text-sm font-medium flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4"></i> Beranda (Kegiatan)
+        </button>
+        <button id="tabPresensiBtn" onclick="switchTab('presensi')" class="py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2">
+          <i data-lucide="users" class="w-4 h-4"></i> Presensi Kelompok
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+    <!-- TAB 1: BERANDA -->
+    <section id="tabBeranda" class="space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">Jadwal & Agenda Kegiatan</h2>
+          <p class="text-sm text-slate-500">Daftar kegiatan, materi pembinaan, dan penyampai materi.</p>
+        </div>
+        <div class="admin-only hidden">
+          <button onclick="openModalKegiatan()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Tambah Kegiatan
+          </button>
+        </div>
+      </div>
+
+      <div id="loadingKegiatan" class="text-center py-12 bg-white rounded-xl border border-slate-200">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        <p class="mt-2 text-sm text-slate-500">Memuat data kegiatan...</p>
+      </div>
+
+      <div id="kegiatanList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+    </section>
+
+    <!-- TAB 2: PRESENSI KELOMPOK -->
+    <section id="tabPresensi" class="space-y-6 hidden">
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">Presensi Sapa & Total Penyamaan Kelompok</h2>
+          <p class="text-sm text-slate-500">Monitoring sapaan harian dan akumulasi nominal penyamaan per desa.</p>
+        </div>
+        <div class="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-semibold border border-blue-100">
+          <i data-lucide="calendar-check" class="w-4 h-4"></i>
+          <span>Tanggal: <span id="currentDateDisplay">-</span></span>
+        </div>
+      </div>
+
+      <div id="loadingPresensi" class="text-center py-12 bg-white rounded-xl border border-slate-200">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        <p class="mt-2 text-sm text-slate-500">Memuat data kelompok...</p>
+      </div>
+
+      <div id="presensiGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
+        <!-- Banjar -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+            <div class="flex items-center gap-2"><i data-lucide="map-pin" class="w-5 h-5 text-amber-400"></i><h3 class="font-bold text-base">Desa Banjar</h3></div>
+            <button onclick="openModalTambahKelompok('Banjar')" class="admin-only hidden text-xs bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded border border-slate-600 flex items-center gap-1 transition"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Kelompok</button>
+          </div>
+          <div class="p-4 flex-grow space-y-3" id="containerBanjar"></div>
+        </div>
+        <!-- Kaling -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+            <div class="flex items-center gap-2"><i data-lucide="map-pin" class="w-5 h-5 text-blue-400"></i><h3 class="font-bold text-base">Desa Kaling</h3></div>
+            <button onclick="openModalTambahKelompok('Kaling')" class="admin-only hidden text-xs bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded border border-slate-600 flex items-center gap-1 transition"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Kelompok</button>
+          </div>
+          <div class="p-4 flex-grow space-y-3" id="containerKaling"></div>
+        </div>
+        <!-- Karangmojo -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+            <div class="flex items-center gap-2"><i data-lucide="map-pin" class="w-5 h-5 text-emerald-400"></i><h3 class="font-bold text-base">Desa Karangmojo</h3></div>
+            <button onclick="openModalTambahKelompok('Karangmojo')" class="admin-only hidden text-xs bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded border border-slate-600 flex items-center gap-1 transition"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Kelompok</button>
+          </div>
+          <div class="p-4 flex-grow space-y-3" id="containerKarangmojo"></div>
+        </div>
+        <!-- Jaten -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
+            <div class="flex items-center gap-2"><i data-lucide="map-pin" class="w-5 h-5 text-purple-400"></i><h3 class="font-bold text-base">Desa Jaten</h3></div>
+            <button onclick="openModalTambahKelompok('Jaten')" class="admin-only hidden text-xs bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded border border-slate-600 flex items-center gap-1 transition"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Kelompok</button>
+          </div>
+          <div class="p-4 flex-grow space-y-3" id="containerJaten"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL LOGIN -->
+  <div id="modalAuth" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 relative">
+      <h3 class="text-lg font-bold text-slate-900 mb-1">Otentikasi Admin</h3>
+      <p class="text-xs text-slate-500 mb-4">Masukkan PIN Admin untuk mengedit data.</p>
+      <form id="formAuth" onsubmit="handleLogin(event)">
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">PIN Passcode</label>
+          <input type="password" id="inputPin" required placeholder="••••••" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" onclick="toggleAuthModal()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>
+          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-sm">Verifikasi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL KEGIATAN -->
+  <div id="modalKegiatan" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+      <h3 id="modalKegiatanTitle" class="text-lg font-bold text-slate-900 mb-4">Tambah Kegiatan Baru</h3>
+      
+      <form id="formKegiatan" onsubmit="saveKegiatan(event)" class="space-y-4">
+        <input type="hidden" id="kegiatanId" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Kegiatan</label>
+          <input type="text" id="inputKegiatan" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Contoh: Pengajian Rutin Daerah" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Hari & Tanggal</label>
+            <input type="date" id="inputHariTanggal" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Jam Waktu</label>
+            <input type="text" id="inputJam" required placeholder="19:30 - Selesai" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-semibold text-slate-700">Materi Sampaian</label>
+            <button type="button" onclick="addMateriInput()" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">
+              <i data-lucide="plus" class="w-3 h-3"></i> Tambah Materi
+            </button>
+          </div>
+          <div id="materiListContainer" class="space-y-2"></div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-semibold text-slate-700">Penyampai Materi</label>
+            <button type="button" onclick="addPenyampaiInput()" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">
+              <i data-lucide="plus" class="w-3 h-3"></i> Tambah Penyampai
+            </button>
+          </div>
+          <div id="penyampaiListContainer" class="space-y-2"></div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t">
+          <button type="button" onclick="closeModalKegiatan()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>
+          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-sm">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL KELOMPOK -->
+  <div id="modalKelompok" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 relative">
+      <h3 class="text-lg font-bold text-slate-900 mb-1">Tambah Kelompok</h3>
+      <p class="text-xs text-slate-500 mb-4">Desa: <span id="targetDesaName" class="font-semibold text-blue-600"></span></p>
+      
+      <form id="formKelompok" onsubmit="saveKelompok(event)">
+        <input type="hidden" id="targetDesaInput" />
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Kelompok</label>
+          <input type="text" id="inputNamaKelompok" required placeholder="Contoh: Kelompok Barat 1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" onclick="closeModalKelompok()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Batal</button>
+          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-sm">Tambah</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-4 mt-auto text-center text-xs text-slate-500">
+    &copy; 2026 OS Studio Daerah Karanganyar Barat. All rights reserved.
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
