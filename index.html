@@ -11,9 +11,9 @@
     .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
   </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col pb-28">
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col">
 
-  <!-- HEADER -->
+  <!-- HEADER & NAVIGATION -->
   <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
@@ -39,12 +39,16 @@
         </div>
       </div>
 
-      <nav class="flex space-x-8 border-t border-slate-100">
-        <button id="tabBerandaBtn" onclick="switchTab('beranda')" class="tab-active py-3 px-1 text-sm font-medium flex items-center gap-2">
+      <!-- TIGA NAVBAR TAB -->
+      <nav class="flex space-x-8 border-t border-slate-100 overflow-x-auto">
+        <button id="tabBerandaBtn" onclick="switchTab('beranda')" class="tab-active py-3 px-1 text-sm font-medium flex items-center gap-2 whitespace-nowrap">
           <i data-lucide="calendar" class="w-4 h-4"></i> Beranda (Kegiatan)
         </button>
-        <button id="tabPresensiBtn" onclick="switchTab('presensi')" class="py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2">
+        <button id="tabPresensiBtn" onclick="switchTab('presensi')" class="py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2 whitespace-nowrap">
           <i data-lucide="users" class="w-4 h-4"></i> Presensi Kelompok
+        </button>
+        <button id="tabRekapBtn" onclick="switchTab('rekap')" class="py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Rekap Harian
         </button>
       </nav>
     </div>
@@ -137,14 +141,38 @@
         </div>
       </div>
 
-      <!-- FLOATING SAVE BAR FOR ADMIN -->
-      <div id="stickySaveBar" class="admin-only hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-5 py-3 rounded-full flex items-center justify-between gap-4 z-40 border border-slate-700 w-[92%] max-w-md shadow-2xl backdrop-blur-md">
-        <span class="text-xs text-slate-300">Draf belum disimpan</span>
-        <button id="btnSimpanPenyapaan" onclick="simpanSemuaPenyapaan()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2 rounded-full transition flex items-center gap-2 shadow-sm">
+      <!-- TOMBOL SIMPAN DI BOTTOM HALAMAN (BUKAN MELAYANG) -->
+      <div id="staticSaveContainer" class="admin-only hidden bg-white border border-slate-200 rounded-xl p-4 mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm">
+        <div class="flex items-center gap-2 text-slate-600 text-sm">
+          <i data-lucide="info" class="w-4 h-4 text-blue-600"></i>
+          <span>Pastikan checklist perubahan presensi sudah benar sebelum disimpan.</span>
+        </div>
+        <button id="btnSimpanPenyapaan" onclick="simpanSemuaPenyapaan()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm">
           <i data-lucide="save" class="w-4 h-4"></i>
           <span>Simpan Penyapaan</span>
         </button>
       </div>
+    </section>
+
+    <!-- TAB 3: REKAP HARIAN -->
+    <section id="tabRekap" class="space-y-6 hidden">
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">Rekapitulasi Penyapaan Daerah</h2>
+          <p class="text-sm text-slate-500">Laporan harian desa dan kelompok yang telah disapa.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-semibold text-slate-600">Pilih Tanggal:</label>
+          <input type="date" id="selectRekapTanggal" onchange="renderRekapHarian()" class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+        </div>
+      </div>
+
+      <div id="loadingRekap" class="text-center py-12 bg-white rounded-xl border border-slate-200">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        <p class="mt-2 text-sm text-slate-500">Memuat data rekapitulasi...</p>
+      </div>
+
+      <div id="rekapContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden"></div>
     </section>
 
   </main>
@@ -167,7 +195,7 @@
     </div>
   </div>
 
-  <!-- MODAL KEGIATAN -->
+  <!-- MODAL KEGIATAN & KELOMPOK -->
   <div id="modalKegiatan" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
       <h3 id="modalKegiatanTitle" class="text-lg font-bold text-slate-900 mb-4">Tambah Kegiatan Baru</h3>
@@ -209,7 +237,6 @@
     </div>
   </div>
 
-  <!-- MODAL KELOMPOK -->
   <div id="modalKelompok" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
     <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 relative">
       <h3 class="text-lg font-bold text-slate-900 mb-1">Tambah Kelompok</h3>
