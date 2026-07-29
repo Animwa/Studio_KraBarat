@@ -1,8 +1,8 @@
 /**
- * FRONTEND JAVASCRIPT LOGIC (WITH RECOMENDATION & ACCUMULATED TOTAL)
+ * FRONTEND JAVASCRIPT LOGIC
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwBAe3zGg4c3Lj4Hjb1dGF7DZiSjh2Sfb0NlXVX44jmqEh84FylvUx7GOL7E-VXBJ9DMw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwqVqpocCd59tgsyZXW1eftrkOvvaFdCVRRGJaGBzTkzQLE7Q00URU1kHCXuwjJWSAcvA/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -279,10 +279,7 @@ async function fetchPresensi() {
     const json = await res.json();
 
     if (json.status === "success") {
-      localPresensiData = json.data.map(item => ({
-        ...item,
-        input_penyamaan_baru: 0 // Inisialisasi tambahan nominal hari ini
-      }));
+      localPresensiData = json.data;
 
       document.getElementById("displayJudulKegiatan").innerText = json.kegiatan_title || "Presensi Sapa Harian";
       document.getElementById("currentDateDisplay").innerText = json.tanggal || "-";
@@ -313,59 +310,55 @@ function renderPresensi() {
     }
 
     kelompokInDesa.forEach(item => {
-      const formattedTotal = Number(item.total_penyamaan + (item.input_penyamaan_baru || 0)).toLocaleString("id-ID");
+      const isSapa = item.status_sapa === true;
+      const isBelumSapa = item.status_belum_sapa === true;
 
       const rowHtml = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border bg-white border-slate-200 gap-2 transition hover:border-slate-300">
-          
-          <!-- NAMA KELOMPOK & REKOMENDASI -->
+        <div class="kelompok-card">
+          <!-- NAMA KELOMPOK & BADGE REKOMENDASI -->
           <div class="flex items-center gap-2">
             ${item.is_recommended ? `
-            <span title="Rekomendasi Prioritas (Akumulasi Penyamaan Terendah)" class="flex items-center gap-1 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+            <span title="Rekomendasi Prioritas (Jumlah Penyapaan Terendah)" class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
               <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-500"></i> Rekomendasi
             </span>
             ` : ''}
-            <span class="text-xs sm:text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
+            <span class="text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
           </div>
 
-          <!-- KONTROL STATUS SAPA & NOMINAL -->
-          <div class="flex items-center gap-2 flex-wrap">
+          <!-- CHECKBOX SAPA / BELUM SAPA / TOTAL PENYAPAAN -->
+          <div class="flex items-center gap-4 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
             
-            <!-- SAPA 1 -->
-            <div class="flex flex-col">
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Sapa 1</span>
-              <select 
-                ${!isAdmin ? 'disabled' : ''} 
-                onchange="updateLocalStatusDraft('${item.id}', 1, this.value)"
-                class="text-xs font-medium px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none disabled:opacity-75">
-                <option value="Belum Sapa" ${item.status_sapa_1 === 'Belum Sapa' ? 'selected' : ''}>Belum Sapa</option>
-                <option value="Sapa" ${item.status_sapa_1 === 'Sapa' ? 'selected' : ''}>Sapa</option>
-              </select>
+            <div class="flex items-center gap-4">
+              <!-- CHECKBOX 1: SAPA (Default TRUE) -->
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  ${isSapa ? 'checked' : ''} 
+                  ${!isAdmin ? 'disabled' : ''}
+                  onchange="toggleLocalSapaStatus('${item.id}', 'sapa')"
+                  class="sapa-checkbox" 
+                />
+                <span class="text-xs font-semibold text-slate-700">Sapa</span>
+              </label>
+
+              <!-- CHECKBOX 2: BELUM SAPA (Default FALSE) -->
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  ${isBelumSapa ? 'checked' : ''} 
+                  ${!isAdmin ? 'disabled' : ''}
+                  onchange="toggleLocalSapaStatus('${item.id}', 'belum_sapa')"
+                  class="sapa-checkbox" 
+                />
+                <span class="text-xs font-semibold text-slate-700">Belum Sapa</span>
+              </label>
             </div>
 
-            <!-- SAPA 2 -->
-            <div class="flex flex-col">
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Sapa 2</span>
-              <select 
-                ${!isAdmin ? 'disabled' : ''} 
-                onchange="updateLocalStatusDraft('${item.id}', 2, this.value)"
-                class="text-xs font-medium px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none disabled:opacity-75">
-                <option value="Belum Sapa" ${item.status_sapa_2 === 'Belum Sapa' ? 'selected' : ''}>Belum Sapa</option>
-                <option value="Sapa" ${item.status_sapa_2 === 'Sapa' ? 'selected' : ''}>Sapa</option>
-              </select>
-            </div>
-
-            <!-- TOTAL AKUMULASI PENYAMAAN -->
-            <div class="flex flex-col">
-              <span class="text-[9px] text-slate-400 font-bold uppercase">Total Penyamaan</span>
-              <div class="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 flex items-center gap-1">
-                <span class="text-[10px] text-slate-400 font-medium">Rp</span>
-                <span class="text-xs font-bold text-slate-800">${formattedTotal}</span>
-                ${isAdmin ? `
-                <button onclick="editLocalTotalDraft('${item.id}')" class="text-slate-400 hover:text-blue-600 ml-1">
-                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-                </button>
-                ` : ''}
+            <!-- TOTAL PENYAPAAN -->
+            <div class="flex flex-col items-end">
+              <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Penyapaan</span>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 flex items-center justify-center min-w-[3rem]">
+                <span class="text-xs font-bold text-slate-800">${item.total_penyapaan}x</span>
               </div>
             </div>
 
@@ -379,31 +372,23 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
-function updateLocalStatusDraft(idKelompok, sapaNum, value) {
-  const item = localPresensiData.find(k => k.id === idKelompok);
-  if (item) {
-    if (sapaNum === 1) item.status_sapa_1 = value;
-    if (sapaNum === 2) item.status_sapa_2 = value;
-  }
-}
-
-function editLocalTotalDraft(idKelompok) {
+// Logika Mutex: Memastikan hanya satu checkbox tercentang
+function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => k.id === idKelompok);
   if (!item) return;
 
-  const inputTambahStr = prompt(`Tambah Nominal Penyamaan Hari Ini untuk "${item.nama_kelompok}" (Rp):`, 0);
-  if (inputTambahStr === null) return;
-
-  const nominalTambah = Number(inputTambahStr);
-  if (isNaN(nominalTambah)) {
-    alert("Nominal harus berupa angka valid.");
-    return;
+  if (targetType === 'sapa') {
+    item.status_sapa = true;
+    item.status_belum_sapa = false;
+  } else if (targetType === 'belum_sapa') {
+    item.status_sapa = false;
+    item.status_belum_sapa = true;
   }
 
-  item.input_penyamaan_baru = nominalTambah;
-  renderPresensi();
+  renderPresensi(); // Update tampilan lokal
 }
 
+// Simpan Permanen ke Google Apps Script
 async function simpanSemuaPenyapaan() {
   const btn = document.getElementById("btnSimpanPenyapaan");
   const originalText = btn.innerHTML;
@@ -413,9 +398,9 @@ async function simpanSemuaPenyapaan() {
 
   const payload = localPresensiData.map(item => ({
     id_kelompok: item.id,
-    status_sapa_1: item.status_sapa_1,
-    status_sapa_2: item.status_sapa_2,
-    input_penyamaan_baru: item.input_penyamaan_baru || 0
+    status_sapa: item.status_sapa,
+    status_belum_sapa: item.status_belum_sapa,
+    total_penyapaan: item.total_penyapaan
   }));
 
   try {
@@ -429,7 +414,7 @@ async function simpanSemuaPenyapaan() {
     const json = await res.json();
 
     if (json.status === "success") {
-      alert("✅ Data penyapaan berhasil disimpan ke Google Sheets!");
+      alert("✅ Data presensi penyapaan berhasil disimpan ke Google Sheets!");
       fetchPresensi();
     } else {
       alert("Gagal menyimpan: " + json.message);
