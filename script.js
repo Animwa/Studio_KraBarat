@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwUE9zUVroVjTaykoeSNp0PAK_GhSzVNMEL7kwkrCVJjZR5w2vfKEt8RU1H3SoFI6MRgQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby3fnwYISAvnNsExdktfilXvQfPfg_DEv7uKngv_WPOL2lKF9ftXTLeVnQZIvgm0-eGrQ/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -23,15 +23,22 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
-// Format Hari (Nama Hari Saja)
+// Format Nama Hari Bahasa Indonesia tanpa offset timezone
 function getNamaHari(dateString) {
   if (!dateString) return "-";
-  const date = new Date(dateString + 'T00:00:00');
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return dateString;
+
+  const year = parseInt(parts[0], 10);
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const dayNum = parseInt(parts[2], 10);
+
+  const dateObj = new Date(year, monthIdx, dayNum);
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-  return days[date.getDay()] || "-";
+  return days[dateObj.getDay()] || "-";
 }
 
-// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
+// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Senin, 27 Juli 2026")
 function formatTanggalIndo(dateString) {
   if (!dateString) return "-";
   const parts = dateString.split('-');
@@ -46,7 +53,7 @@ function formatTanggalIndo(dateString) {
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
   ];
 
-  const dateObj = new Date(year, monthIdx, dayNum);
+  const dateObj = new Date(parseInt(year, 10), monthIdx, dayNum);
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   
   const dayName = days[dateObj.getDay()];
@@ -343,6 +350,8 @@ async function fetchPresensi(selectedDate) {
       localPresensiData = json.data.map(item => ({
         ...item,
         id: String(item.id),
+        status_sapa: Boolean(item.status_sapa),
+        status_belum_sapa: Boolean(item.status_belum_sapa),
         is_dirty: false
       }));
 
@@ -375,7 +384,7 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // Status Indikator
+      // Indikator Status: "Tersimpan" / "Draf" / "Belum Disimpan"
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
@@ -413,7 +422,7 @@ function renderPresensi() {
                 <span class="text-xs font-semibold text-slate-700">Sapa</span>
               </label>
 
-              <!-- CHECKBOX 2: BELUM SAPA (DEFAULT TRUE) -->
+              <!-- CHECKBOX 2: BELUM SAPA -->
               <label class="flex items-center gap-1.5 cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -444,7 +453,6 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
-// LOGIKA MUTEX (HANYA 1 PILIHAN TERCENTANG & UPDATE DRAF)
 function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => String(k.id) === String(idKelompok));
   if (!item) return;
@@ -472,8 +480,8 @@ async function simpanSemuaPenyapaan() {
 
   const payloadItems = localPresensiData.map(item => ({
     id_kelompok: item.id,
-    status_sapa: item.status_sapa,
-    status_belum_sapa: item.status_belum_sapa,
+    status_sapa: Boolean(item.status_sapa),
+    status_belum_sapa: Boolean(item.status_belum_sapa),
     total_penyapaan: item.total_penyapaan
   }));
 
@@ -506,7 +514,7 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
-// REKAP HARIAN LOGIC (FORMAT TANGGAL BAKU INDONESIA)
+// REKAP HARIAN LOGIC
 async function fetchRekapHarian() {
   const loading = document.getElementById("loadingRekap");
   const container = document.getElementById("rekapContainer");
@@ -561,7 +569,7 @@ function renderRekapHarian() {
       `;
     }).join('');
 
-    // Menggunakan formatTanggalIndo() untuk tampilan tanggal yang rapi
+    // Format Tanggal Baku Indonesia Tanpa Kata Berulang
     const formattedDateText = formatTanggalIndo(session.tanggal);
 
     const cardHtml = `
