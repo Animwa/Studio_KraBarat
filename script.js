@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwPZmjduhsgSd-_JUJ6j-hI189mugNDQ_1j3otSXut2MWyKBtQER11t-xAzU7XK0ClwQQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwNaC6LTUZxO0NW-klB36z9_Lv6-GQsC3sQ4NX6NApTb4uQK6hyB9roZf5tB0vwSEggkA/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -353,7 +353,8 @@ async function fetchPresensi(selectedDate) {
         id: String(item.id),
         status_sapa: Boolean(item.status_sapa),
         status_belum_sapa: Boolean(item.status_belum_sapa),
-        is_dirty: false
+        is_saved: Boolean(item.is_saved), // Flag status tersimpan
+        is_dirty: false                   // Flag draf
       }));
 
       document.getElementById("inputNamaKegiatanPresensi").value = json.kegiatan_title || "";
@@ -385,7 +386,7 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // Status Indikator Badge
+      // BADGE STATUS INDIKATOR
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
