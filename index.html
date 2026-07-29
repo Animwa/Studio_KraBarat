@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OS Studio Daerah Karanganyar Barat</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
   </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col pb-24">
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col pb-28">
 
   <!-- HEADER -->
-  <header class="bg-white shadow-md sticky top-0 z-30">
+  <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <div class="flex items-center space-x-3">
@@ -49,7 +50,7 @@
     </div>
   </header>
 
-  <!-- CONTAINER -->
+  <!-- MAIN CONTAINER -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
 
     <!-- TAB 1: BERANDA -->
@@ -79,15 +80,15 @@
       <!-- HEADER INFO BAR -->
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div class="flex items-center gap-2">
-            <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded">Kegiatan</span>
-            <h2 id="displayJudulKegiatan" class="text-xl font-bold text-slate-900">Loading...</h2>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md">Kegiatan</span>
+            <h2 id="displayJudulKegiatan" class="text-lg sm:text-xl font-bold text-slate-900">Loading...</h2>
           </div>
-          <p class="text-sm text-slate-500 mt-1">Monitoring sapaan harian & rekomendasi prioritas penyapaan.</p>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">Monitoring sapaan harian & akumulasi total penyapaan.</p>
         </div>
         
-        <div class="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-semibold border border-blue-100 shadow-2xs">
-          <i data-lucide="calendar-check" class="w-4.5 h-4.5"></i>
+        <div class="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold border border-blue-100 shadow-2xs">
+          <i data-lucide="calendar-check" class="w-4 h-4"></i>
           <span><span id="displayNamaHari">-</span>, <span id="currentDateDisplay">-</span></span>
         </div>
       </div>
@@ -98,7 +99,7 @@
       </div>
 
       <!-- GRID 2x2 DESA -->
-      <div id="presensiGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
+      <div id="presensiGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
         <!-- Banjar -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div class="bg-slate-800 text-white px-5 py-3.5 flex justify-between items-center">
@@ -136,9 +137,9 @@
         </div>
       </div>
 
-      <!-- FLOATING SAVE BAR -->
-      <div id="stickySaveBar" class="admin-only hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 z-40 border border-slate-700">
-        <span class="text-xs text-slate-300">Simpan perubahan presensi ke database</span>
+      <!-- FLOATING SAVE BAR FOR ADMIN -->
+      <div id="stickySaveBar" class="admin-only hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-5 py-3 rounded-full flex items-center justify-between gap-4 z-40 border border-slate-700 w-[92%] max-w-md shadow-2xl backdrop-blur-md">
+        <span class="text-xs text-slate-300">Draf belum disimpan</span>
         <button id="btnSimpanPenyapaan" onclick="simpanSemuaPenyapaan()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2 rounded-full transition flex items-center gap-2 shadow-sm">
           <i data-lucide="save" class="w-4 h-4"></i>
           <span>Simpan Penyapaan</span>
@@ -148,8 +149,8 @@
 
   </main>
 
-  <!-- MODAL LOGIN ADMIN -->
-  <div id="modalAuth" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+  <!-- MODAL AUTH ADMIN -->
+  <div id="modalAuth" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
     <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 relative">
       <h3 class="text-lg font-bold text-slate-900 mb-1">Otentikasi Admin</h3>
       <p class="text-xs text-slate-500 mb-4">Masukkan PIN Admin untuk mengedit data.</p>
