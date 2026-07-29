@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbx_PLACEHOLDER_YOUR_DEPLOYMENT_ID/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxzsyfYy9qm2Uk43aPMBKx2yxkJY8JjtQ8D3GNyeIAl_4frdEirgmpIYEJiezVfdkRJeQ/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
