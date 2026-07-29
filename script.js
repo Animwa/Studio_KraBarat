@@ -2,11 +2,12 @@
  * FRONTEND JAVASCRIPT LOGIC
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwqVqpocCd59tgsyZXW1eftrkOvvaFdCVRRGJaGBzTkzQLE7Q00URU1kHCXuwjJWSAcvA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzdVrRCi7tzXbwDoKzepJEl0Vl5eMG3GKtcob7Pz3zJNvRLjpS8wu5c02CHoTgiCa26mw/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
 let localPresensiData = [];
+let rawRekapData = {};
 
 document.addEventListener("DOMContentLoaded", () => {
   checkAdminStatus();
@@ -89,19 +90,30 @@ async function handleLogin(e) {
 function switchTab(tabName) {
   const berandaTab = document.getElementById("tabBeranda");
   const presensiTab = document.getElementById("tabPresensi");
+  const rekapTab = document.getElementById("tabRekap");
+
   const berandaBtn = document.getElementById("tabBerandaBtn");
   const presensiBtn = document.getElementById("tabPresensiBtn");
+  const rekapBtn = document.getElementById("tabRekapBtn");
+
+  berandaTab.classList.add("hidden");
+  presensiTab.classList.add("hidden");
+  rekapTab.classList.add("hidden");
+
+  berandaBtn.className = "py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2 whitespace-nowrap";
+  presensiBtn.className = "py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2 whitespace-nowrap";
+  rekapBtn.className = "py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2 whitespace-nowrap";
 
   if (tabName === "beranda") {
     berandaTab.classList.remove("hidden");
-    presensiTab.classList.add("hidden");
-    berandaBtn.className = "tab-active py-3 px-1 text-sm font-medium flex items-center gap-2";
-    presensiBtn.className = "py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2";
-  } else {
-    berandaTab.classList.add("hidden");
+    berandaBtn.className = "tab-active py-3 px-1 text-sm font-medium flex items-center gap-2 whitespace-nowrap";
+  } else if (tabName === "presensi") {
     presensiTab.classList.remove("hidden");
-    berandaBtn.className = "py-3 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2";
-    presensiBtn.className = "tab-active py-3 px-1 text-sm font-medium flex items-center gap-2";
+    presensiBtn.className = "tab-active py-3 px-1 text-sm font-medium flex items-center gap-2 whitespace-nowrap";
+  } else if (tabName === "rekap") {
+    rekapTab.classList.remove("hidden");
+    rekapBtn.className = "tab-active py-3 px-1 text-sm font-medium flex items-center gap-2 whitespace-nowrap";
+    fetchRekapHarian();
   }
 }
 
@@ -325,11 +337,11 @@ function renderPresensi() {
             <span class="text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
           </div>
 
-          <!-- CHECKBOX SAPA / BELUM SAPA / TOTAL PENYAPAAN -->
+          <!-- CHECKBOX & TOTAL PENYAPAAN KOTAK BESAR BERWARNA -->
           <div class="flex items-center gap-4 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
             
             <div class="flex items-center gap-4">
-              <!-- CHECKBOX 1: SAPA (Default TRUE) -->
+              <!-- CHECKBOX 1: SAPA -->
               <label class="flex items-center gap-1.5 cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -341,7 +353,7 @@ function renderPresensi() {
                 <span class="text-xs font-semibold text-slate-700">Sapa</span>
               </label>
 
-              <!-- CHECKBOX 2: BELUM SAPA (Default FALSE) -->
+              <!-- CHECKBOX 2: BELUM SAPA (DEFAULT TERCENTANG) -->
               <label class="flex items-center gap-1.5 cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -354,11 +366,11 @@ function renderPresensi() {
               </label>
             </div>
 
-            <!-- TOTAL PENYAPAAN -->
+            <!-- KOTAK TOTAL PENYAPAAN LEBIH BESAR & BERWARNA -->
             <div class="flex flex-col items-end">
               <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Penyapaan</span>
-              <div class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 flex items-center justify-center min-w-[3rem]">
-                <span class="text-xs font-bold text-slate-800">${item.total_penyapaan}x</span>
+              <div class="badge-total-penyapaan">
+                <span>${item.total_penyapaan}x</span>
               </div>
             </div>
 
@@ -372,7 +384,6 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
-// Logika Mutex: Memastikan hanya satu checkbox tercentang
 function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => k.id === idKelompok);
   if (!item) return;
@@ -385,10 +396,9 @@ function toggleLocalSapaStatus(idKelompok, targetType) {
     item.status_belum_sapa = true;
   }
 
-  renderPresensi(); // Update tampilan lokal
+  renderPresensi();
 }
 
-// Simpan Permanen ke Google Apps Script
 async function simpanSemuaPenyapaan() {
   const btn = document.getElementById("btnSimpanPenyapaan");
   const originalText = btn.innerHTML;
@@ -428,6 +438,100 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
+// REKAP HARIAN LOGIC
+async function fetchRekapHarian() {
+  const loading = document.getElementById("loadingRekap");
+  const container = document.getElementById("rekapContainer");
+
+  loading.classList.remove("hidden");
+  container.classList.add("hidden");
+
+  try {
+    const res = await fetch(`${API_URL}?action=getRekapHarian`);
+    const json = await res.json();
+
+    if (json.status === "success") {
+      rawRekapData = json.data;
+      
+      // Auto-set tanggal hari ini di input date jika belum diisi
+      const selectDate = document.getElementById("selectRekapTanggal");
+      if (!selectDate.value) {
+        const todayStr = new Date().toISOString().substring(0, 10);
+        selectDate.value = todayStr;
+      }
+
+      renderRekapHarian();
+    }
+  } catch (err) {
+    console.error("Error fetching rekap:", err);
+  } finally {
+    loading.classList.add("hidden");
+    container.classList.remove("hidden");
+  }
+}
+
+function renderRekapHarian() {
+  const selectDate = document.getElementById("selectRekapTanggal").value;
+  const container = document.getElementById("rekapContainer");
+  container.innerHTML = "";
+
+  if (!selectDate || !rawRekapData[selectDate] || rawRekapData[selectDate].length === 0) {
+    container.innerHTML = `
+      <div class="col-span-full bg-white p-8 text-center rounded-xl border border-slate-200 text-slate-400">
+        Belum ada riwayat penyapaan yang tercatat pada tanggal <span class="font-semibold text-slate-700">${selectDate || '-'}</span>.
+      </div>`;
+    return;
+  }
+
+  const listHarian = rawRekapData[selectDate];
+  const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
+
+  desas.forEach(desa => {
+    const itemsInDesa = listHarian.filter(item => item.desa === desa);
+    const totalKelompok = itemsInDesa.length;
+    const disapaCount = itemsInDesa.filter(item => item.status_sapa === true).length;
+    const persentase = totalKelompok > 0 ? Math.round((disapaCount / totalKelompok) * 100) : 0;
+
+    const kelompokListHtml = itemsInDesa.map(item => `
+      <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
+        <span class="font-medium text-slate-700">${item.nama_kelompok}</span>
+        ${item.status_sapa ? `
+          <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-3 h-3"></i> Disapa
+          </span>
+        ` : `
+          <span class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+            Belum Disapa
+          </span>
+        `}
+      </div>
+    `).join('');
+
+    const cardHtml = `
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Desa ${desa}</h3>
+            <p class="text-xs text-slate-500">${disapaCount} dari ${totalKelompok} Kelompok Disapa</p>
+          </div>
+          <div class="text-right">
+            <span class="text-lg font-extrabold ${persentase === 100 ? 'text-emerald-600' : 'text-blue-600'}">${persentase}%</span>
+            <p class="text-[10px] text-slate-400 font-semibold uppercase">Capaian</p>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          ${kelompokListHtml || '<p class="text-xs text-slate-400 italic">Tidak ada kelompok terdaftar</p>'}
+        </div>
+      </div>
+    `;
+
+    container.innerHTML += cardHtml;
+  });
+
+  lucide.createIcons();
+}
+
 function openModalTambahKelompok(desaName) {
   document.getElementById("targetDesaName").innerText = desaName;
   document.getElementById("targetDesaInput").value = desaName;
@@ -449,7 +553,7 @@ async function saveKelompok(e) {
       method: "POST",
       body: JSON.stringify({
         action: "addKelompok",
-        payload: { desa: desa, nama_kelompok: nama }
+        payload: { desa, nama_kelompok: nama }
       })
     });
     const json = await res.json();
