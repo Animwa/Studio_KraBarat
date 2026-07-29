@@ -2,25 +2,45 @@
  * FRONTEND JAVASCRIPT LOGIC
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzdVrRCi7tzXbwDoKzepJEl0Vl5eMG3GKtcob7Pz3zJNvRLjpS8wu5c02CHoTgiCa26mw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzj_HwIyBsXVhfB6288wPvIfZsVZf1421JChoSmvHNgexEKmBLg-rsXVYPfUa-mIYan6g/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
 let localPresensiData = [];
-let rawRekapData = {};
+let rawRekapData = [];
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Set default tanggal hari ini di input tanggal presensi
+  const todayStr = new Date().toISOString().substring(0, 10);
+  const dateInput = document.getElementById("inputTanggalPresensi");
+  if (dateInput) {
+    dateInput.value = todayStr;
+    updateNamaHariDisplay(todayStr);
+  }
+
   checkAdminStatus();
   fetchKegiatan();
-  fetchPresensi();
+  fetchPresensi(todayStr);
   lucide.createIcons();
 });
 
 function getNamaHari(dateString) {
-  if (!dateString || dateString === "-") return "-";
+  if (!dateString) return "-";
   const date = new Date(dateString);
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   return days[date.getDay()] || "-";
+}
+
+function updateNamaHariDisplay(dateString) {
+  const displayElement = document.getElementById("displayNamaHariPresensi");
+  if (displayElement) {
+    displayElement.innerText = getNamaHari(dateString);
+  }
+}
+
+function handleTanggalPresensiChange(selectedDate) {
+  updateNamaHariDisplay(selectedDate);
+  fetchPresensi(selectedDate);
 }
 
 function checkAdminStatus() {
@@ -33,17 +53,20 @@ function updateRoleUI() {
   const badge = document.getElementById("roleBadge");
   const authBtnText = document.getElementById("authBtnText");
   const adminElements = document.querySelectorAll(".admin-only");
+  const kegInput = document.getElementById("inputNamaKegiatanPresensi");
 
   if (isAdmin) {
     badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200";
     badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>Admin Mode</span>`;
     authBtnText.innerText = "Logout";
     adminElements.forEach(el => el.classList.remove("hidden"));
+    if (kegInput) kegInput.disabled = false;
   } else {
     badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200";
     badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>Viewer</span>`;
     authBtnText.innerText = "Login Admin";
     adminElements.forEach(el => el.classList.add("hidden"));
+    if (kegInput) kegInput.disabled = true;
   }
   lucide.createIcons();
 }
@@ -280,23 +303,21 @@ async function deleteKegiatan(id) {
 }
 
 // PRESENSI KELOMPOK LOGIC
-async function fetchPresensi() {
+async function fetchPresensi(selectedDate) {
   const loading = document.getElementById("loadingPresensi");
   const grid = document.getElementById("presensiGrid");
   loading.classList.remove("hidden");
   grid.classList.add("hidden");
 
+  const targetDate = selectedDate || document.getElementById("inputTanggalPresensi").value;
+
   try {
-    const res = await fetch(`${API_URL}?action=getPresensiKelompok`);
+    const res = await fetch(`${API_URL}?action=getPresensiKelompok&tanggal=${encodeURIComponent(targetDate)}`);
     const json = await res.json();
 
     if (json.status === "success") {
       localPresensiData = json.data;
-
-      document.getElementById("displayJudulKegiatan").innerText = json.kegiatan_title || "Presensi Sapa Harian";
-      document.getElementById("currentDateDisplay").innerText = json.tanggal || "-";
-      document.getElementById("displayNamaHari").innerText = getNamaHari(json.tanggal);
-
+      document.getElementById("inputNamaKegiatanPresensi").value = json.kegiatan_title || "";
       renderPresensi();
     }
   } catch (err) {
@@ -402,11 +423,13 @@ function toggleLocalSapaStatus(idKelompok, targetType) {
 async function simpanSemuaPenyapaan() {
   const btn = document.getElementById("btnSimpanPenyapaan");
   const originalText = btn.innerHTML;
+  const targetDate = document.getElementById("inputTanggalPresensi").value;
+  const namaKegiatan = document.getElementById("inputNamaKegiatanPresensi").value.trim() || "Presensi Sapa Harian";
 
   btn.disabled = true;
   btn.innerHTML = `<span class="animate-spin">⏳</span> Menyimpan...`;
 
-  const payload = localPresensiData.map(item => ({
+  const payloadItems = localPresensiData.map(item => ({
     id_kelompok: item.id,
     status_sapa: item.status_sapa,
     status_belum_sapa: item.status_belum_sapa,
@@ -418,14 +441,18 @@ async function simpanSemuaPenyapaan() {
       method: "POST",
       body: JSON.stringify({
         action: "saveBatchPresensiSapa",
-        payload: payload
+        payload: {
+          tanggal: targetDate,
+          nama_kegiatan: namaKegiatan,
+          items: payloadItems
+        }
       })
     });
     const json = await res.json();
 
     if (json.status === "success") {
       alert("✅ Data presensi penyapaan berhasil disimpan ke Google Sheets!");
-      fetchPresensi();
+      fetchPresensi(targetDate);
     } else {
       alert("Gagal menyimpan: " + json.message);
     }
@@ -438,7 +465,7 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
-// REKAP HARIAN LOGIC
+// REKAP HARIAN LOGIC (GROUPED BY NAMA KEGIATAN & TANGGAL)
 async function fetchRekapHarian() {
   const loading = document.getElementById("loadingRekap");
   const container = document.getElementById("rekapContainer");
@@ -452,14 +479,6 @@ async function fetchRekapHarian() {
 
     if (json.status === "success") {
       rawRekapData = json.data;
-      
-      // Auto-set tanggal hari ini di input date jika belum diisi
-      const selectDate = document.getElementById("selectRekapTanggal");
-      if (!selectDate.value) {
-        const todayStr = new Date().toISOString().substring(0, 10);
-        selectDate.value = todayStr;
-      }
-
       renderRekapHarian();
     }
   } catch (err) {
@@ -471,57 +490,52 @@ async function fetchRekapHarian() {
 }
 
 function renderRekapHarian() {
-  const selectDate = document.getElementById("selectRekapTanggal").value;
   const container = document.getElementById("rekapContainer");
   container.innerHTML = "";
 
-  if (!selectDate || !rawRekapData[selectDate] || rawRekapData[selectDate].length === 0) {
+  if (!rawRekapData || rawRekapData.length === 0) {
     container.innerHTML = `
       <div class="col-span-full bg-white p-8 text-center rounded-xl border border-slate-200 text-slate-400">
-        Belum ada riwayat penyapaan yang tercatat pada tanggal <span class="font-semibold text-slate-700">${selectDate || '-'}</span>.
+        Belum ada riwayat kegiatan presensi yang disapa.
       </div>`;
     return;
   }
 
-  const listHarian = rawRekapData[selectDate];
-  const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
+  rawRekapData.forEach(session => {
+    const disapaList = session.kelompok_disapa || [];
+    const totalDisapa = disapaList.length;
 
-  desas.forEach(desa => {
-    const itemsInDesa = listHarian.filter(item => item.desa === desa);
-    const totalKelompok = itemsInDesa.length;
-    const disapaCount = itemsInDesa.filter(item => item.status_sapa === true).length;
-    const persentase = totalKelompok > 0 ? Math.round((disapaCount / totalKelompok) * 100) : 0;
+    // Kelompokkan per desa dalam kegiatan ini
+    const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
+    const desaHtmlList = desas.map(desa => {
+      const items = disapaList.filter(d => d.desa === desa);
+      if (items.length === 0) return '';
 
-    const kelompokListHtml = itemsInDesa.map(item => `
-      <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
-        <span class="font-medium text-slate-700">${item.nama_kelompok}</span>
-        ${item.status_sapa ? `
-          <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-3 h-3"></i> Disapa
-          </span>
-        ` : `
-          <span class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
-            Belum Disapa
-          </span>
-        `}
-      </div>
-    `).join('');
+      const namesHtml = items.map(i => `<span class="inline-block bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded text-xs font-semibold">${i.nama_kelompok}</span>`).join(' ');
+
+      return `
+        <div class="space-y-1">
+          <p class="text-xs font-bold text-slate-600">Desa ${desa} (${items.length}):</p>
+          <div class="flex flex-wrap gap-1">${namesHtml}</div>
+        </div>
+      `;
+    }).join('');
 
     const cardHtml = `
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div class="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
-            <h3 class="font-bold text-base text-slate-900">Desa ${desa}</h3>
-            <p class="text-xs text-slate-500">${disapaCount} dari ${totalKelompok} Kelompok Disapa</p>
+            <h3 class="font-bold text-base text-slate-900 leading-snug">${session.nama_kegiatan}</h3>
+            <p class="text-xs text-slate-500 mt-0.5"><i data-lucide="calendar" class="w-3.5 h-3.5 inline text-blue-600"></i> ${getNamaHari(session.tanggal)}, ${session.tanggal}</p>
           </div>
-          <div class="text-right">
-            <span class="text-lg font-extrabold ${persentase === 100 ? 'text-emerald-600' : 'text-blue-600'}">${persentase}%</span>
-            <p class="text-[10px] text-slate-400 font-semibold uppercase">Capaian</p>
+          <div class="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1 rounded-lg text-right">
+            <span class="text-lg font-extrabold">${totalDisapa}</span>
+            <span class="text-xs font-semibold"> Kelompok Disapa</span>
           </div>
         </div>
 
-        <div class="space-y-1">
-          ${kelompokListHtml || '<p class="text-xs text-slate-400 italic">Tidak ada kelompok terdaftar</p>'}
+        <div class="space-y-3 pt-1">
+          ${desaHtmlList || '<p class="text-xs text-slate-400 italic">Belum ada kelompok yang disapa pada kegiatan ini.</p>'}
         </div>
       </div>
     `;
