@@ -450,33 +450,54 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
+      // Status Indikator Badge Kanan
       let statusBadgeHtml = "";
       if (item.is_dirty) {
-        statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
+        statusBadgeHtml = `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">Draf</span>`;
       } else if (item.is_saved) {
-        statusBadgeHtml = `<span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200">Tersimpan</span>`;
+        statusBadgeHtml = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-300">Tersimpan</span>`;
       } else {
-        statusBadgeHtml = `<span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200">Belum Disimpan</span>`;
+        statusBadgeHtml = `<span class="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-300">Belum Disimpan</span>`;
+      }
+
+      // Rekomendasi Kiri
+      let rekapBadgeHtml = "";
+      if (item.is_recommended) {
+        rekapBadgeHtml = `
+          <span title="Rekomendasi Prioritas" class="inline-flex items-center gap-1 bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] font-extrabold border border-amber-300 shadow-2xs">
+            <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-600"></i> Rekomendasi
+          </span>
+        `;
       }
 
       const safeId = String(item.id).replace(/'/g, "\\'");
 
+      // STRUKTUR GRID PERSIS SEPERTI GAMBAR
       const rowHtml = `
-        <div class="kelompok-card">
-          <div class="flex items-center gap-2 flex-wrap">
-            ${item.is_recommended ? `
-            <span title="Rekomendasi Prioritas (Jumlah Penyapaan Terendah)" class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
-              <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-500"></i> Rekomendasi
-            </span>
-            ` : ''}
-            <span class="text-sm font-bold text-slate-800">${item.nama_kelompok}</span>
-            ${statusBadgeHtml}
+        <div class="grid-table-kelompok">
+          
+          <!-- BARIS ATAS: [REKOMENDASI (KIRI)] - [NAMA KELOMPOK (CENTER)] - [STATUS TERSIMPAN (KANAN)] -->
+          <div class="grid-table-header">
+            <div class="flex justify-start">
+              ${rekapBadgeHtml}
+            </div>
+            
+            <div class="text-center font-bold text-sm text-blue-950 uppercase tracking-wide">
+              ${item.nama_kelompok}
+            </div>
+
+            <div class="flex justify-end">
+              ${statusBadgeHtml}
+            </div>
           </div>
 
-          <div class="flex items-center gap-4 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
-            <div class="flex items-center gap-4">
+          <!-- BARIS BAWAH: [KONTROL SAPA (LEFT/CENTER)] | [TOTAL PENYAPAAN (RIGHT/CENTER)] -->
+          <div class="grid-table-body">
+            
+            <!-- KOLOM KIRI: SAPA & BELUM SAPA -->
+            <div class="grid-col-sapa">
               <!-- CHECKBOX 1: SAPA -->
-              <label class="flex items-center gap-1.5 cursor-pointer">
+              <label class="flex items-center gap-2 cursor-pointer">
                 <input 
                   type="checkbox" 
                   ${isSapa ? 'checked' : ''} 
@@ -484,11 +505,11 @@ function renderPresensi() {
                   onchange="toggleLocalSapaStatus('${safeId}', 'sapa')"
                   class="sapa-checkbox" 
                 />
-                <span class="text-xs font-semibold text-slate-700">Sapa</span>
+                <span class="text-xs font-bold text-slate-800">sapa</span>
               </label>
 
               <!-- CHECKBOX 2: BELUM SAPA -->
-              <label class="flex items-center gap-1.5 cursor-pointer">
+              <label class="flex items-center gap-2 cursor-pointer">
                 <input 
                   type="checkbox" 
                   ${isBelumSapa ? 'checked' : ''} 
@@ -496,19 +517,18 @@ function renderPresensi() {
                   onchange="toggleLocalSapaStatus('${safeId}', 'belum_sapa')"
                   class="sapa-checkbox" 
                 />
-                <span class="text-xs font-semibold text-slate-700">Belum Sapa</span>
+                <span class="text-xs font-bold text-slate-800">belum sapa</span>
               </label>
             </div>
 
-            <!-- TOTAL PENYAPAAN -->
-            <div class="flex flex-col items-end">
-              <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Penyapaan</span>
-              <div class="badge-total-penyapaan">
-                <span>${item.total_penyapaan}x</span>
-              </div>
+            <!-- KOLOM KANAN: TOTAL PENYAPAAN -->
+            <div class="grid-col-total">
+              <span class="text-[9px] font-bold text-blue-800 uppercase tracking-wider mb-0.5">total penyapaan</span>
+              <span class="text-sm font-extrabold text-blue-950">${item.total_penyapaan}</span>
             </div>
 
           </div>
+
         </div>
       `;
       container.innerHTML += rowHtml;
