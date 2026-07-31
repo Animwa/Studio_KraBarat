@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwNaC6LTUZxO0NW-klB36z9_Lv6-GQsC3sQ4NX6NApTb4uQK6hyB9roZf5tB0vwSEggkA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby6wjOkFGUd0G076clEsrrm7Zq4IN2DTLcpBhYNyUwMt9GtJn7U-vEP4qCBA-9HyvJYXw/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -23,7 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
-// Format Nama Hari Bahasa Indonesia tanpa offset timezone
 function getNamaHari(dateString) {
   if (!dateString) return "-";
   const parts = dateString.split('-');
@@ -38,7 +37,6 @@ function getNamaHari(dateString) {
   return days[dateObj.getDay()] || "-";
 }
 
-// Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
 function formatTanggalIndo(dateString) {
   if (!dateString) return "-";
   const cleanDate = dateString.substring(0, 10);
@@ -289,20 +287,28 @@ function closeModalKegiatan() {
 }
 
 function editKegiatan(id) {
-  const item = globalKegiatanData.find(k => k.id === id);
+  const item = globalKegiatanData.find(k => String(k.id) === String(id));
   if (!item) return;
 
   openModalKegiatan(true);
   document.getElementById("kegiatanId").value = item.id;
-  document.getElementById("inputKegiatan").value = item.kegiatan;
-  document.getElementById("inputHariTanggal").value = item.hari_tanggal;
-  document.getElementById("inputJam").value = item.jam;
+  document.getElementById("inputKegiatan").value = item.kegiatan || item.nama_kegiatan || "";
+  document.getElementById("inputHariTanggal").value = item.hari_tanggal || "";
+  document.getElementById("inputJam").value = item.jam || "";
 
-  if (item.materi_list && item.materi_list.length > 0) item.materi_list.forEach(m => addMateriInput(m));
-  else addMateriInput();
+  document.getElementById("materiListContainer").innerHTML = "";
+  if (item.materi_list && Array.isArray(item.materi_list) && item.materi_list.length > 0) {
+    item.materi_list.forEach(m => addMateriInput(m));
+  } else {
+    addMateriInput();
+  }
 
-  if (item.penyampai_list && item.penyampai_list.length > 0) item.penyampai_list.forEach(p => addPenyampaiInput(p));
-  else addPenyampaiInput();
+  document.getElementById("penyampaiListContainer").innerHTML = "";
+  if (item.penyampai_list && Array.isArray(item.penyampai_list) && item.penyampai_list.length > 0) {
+    item.penyampai_list.forEach(p => addPenyampaiInput(p));
+  } else {
+    addPenyampaiInput();
+  }
 }
 
 async function saveKegiatan(e) {
@@ -310,9 +316,15 @@ async function saveKegiatan(e) {
   const materi_list = Array.from(document.querySelectorAll(".materi-input")).map(i => i.value.trim()).filter(v => v !== "");
   const penyampai_list = Array.from(document.querySelectorAll(".penyampai-input")).map(i => i.value.trim()).filter(v => v !== "");
 
+  const namaKegiatanVal = document.getElementById("inputKegiatan").value.trim();
+  if (!namaKegiatanVal) {
+    alert("Nama Kegiatan wajib diisi!");
+    return;
+  }
+
   const payload = {
     id: document.getElementById("kegiatanId").value || null,
-    kegiatan: document.getElementById("inputKegiatan").value,
+    kegiatan: namaKegiatanVal,
     hari_tanggal: document.getElementById("inputHariTanggal").value,
     jam: document.getElementById("inputJam").value,
     materi_list, penyampai_list
@@ -321,8 +333,14 @@ async function saveKegiatan(e) {
   try {
     const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "saveKegiatan", payload }) });
     const json = await res.json();
-    if (json.status === "success") { closeModalKegiatan(); fetchKegiatan(); }
-  } catch (err) { alert("Terjadi kesalahan."); }
+    if (json.status === "success") { 
+      closeModalKegiatan(); 
+      fetchKegiatan(); 
+      alert("✅ Data kegiatan berhasil disimpan!");
+    } else {
+      alert("Gagal menyimpan: " + json.message);
+    }
+  } catch (err) { alert("Terjadi kesalahan koneksi."); }
 }
 
 async function deleteKegiatan(id) {
@@ -351,10 +369,10 @@ async function fetchPresensi(selectedDate) {
       localPresensiData = json.data.map(item => ({
         ...item,
         id: String(item.id),
+        desa: String(item.desa).trim() === "Banjar" ? "Banjarharjo" : String(item.desa).trim(),
         status_sapa: Boolean(item.status_sapa),
         status_belum_sapa: Boolean(item.status_belum_sapa),
-        is_saved: Boolean(item.is_saved), // Flag status tersimpan
-        is_dirty: false                   // Flag draf
+        is_dirty: false
       }));
 
       document.getElementById("inputNamaKegiatanPresensi").value = json.kegiatan_title || "";
@@ -369,10 +387,12 @@ async function fetchPresensi(selectedDate) {
 }
 
 function renderPresensi() {
-  const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
+  const desas = ["Banjarharjo", "Kaling", "Karangmojo", "Jaten"];
 
   desas.forEach(desa => {
     const container = document.getElementById(`container${desa}`);
+    if (!container) return;
+
     container.innerHTML = "";
 
     const kelompokInDesa = localPresensiData.filter(k => k.desa === desa);
@@ -386,7 +406,7 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // BADGE STATUS INDIKATOR
+      // Status Indikator Badge
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
@@ -455,7 +475,6 @@ function renderPresensi() {
   lucide.createIcons();
 }
 
-// LOGIKA MUTEX (HANYA 1 PILIHAN TERCENTANG)
 function toggleLocalSapaStatus(idKelompok, targetType) {
   const item = localPresensiData.find(k => String(k.id) === String(idKelompok));
   if (!item) return;
@@ -557,7 +576,7 @@ function renderRekapHarian() {
     const disapaList = session.kelompok_disapa || [];
     const totalDisapa = disapaList.length;
 
-    const desas = ["Banjar", "Kaling", "Karangmojo", "Jaten"];
+    const desas = ["Banjarharjo", "Kaling", "Karangmojo", "Jaten"];
     const desaHtmlList = desas.map(desa => {
       const items = disapaList.filter(d => d.desa === desa);
       if (items.length === 0) return '';
@@ -572,7 +591,6 @@ function renderRekapHarian() {
       `;
     }).join('');
 
-    // Tanggal Bahasa Indonesia Bebas Bug
     const formattedDateText = formatTanggalIndo(session.tanggal);
 
     const cardHtml = `
@@ -616,7 +634,9 @@ function closeModalKelompok() {
 
 async function saveKelompok(e) {
   e.preventDefault();
-  const desa = document.getElementById("targetDesaInput").value;
+  let desa = document.getElementById("targetDesaInput").value;
+  if (String(desa).trim() === "Banjar") desa = "Banjarharjo";
+
   const nama = document.getElementById("inputNamaKelompok").value;
 
   try {
