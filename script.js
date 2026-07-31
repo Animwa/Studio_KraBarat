@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycby6wjOkFGUd0G076clEsrrm7Zq4IN2DTLcpBhYNyUwMt9GtJn7U-vEP4qCBA-9HyvJYXw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbziXGr-Z3TJZNwm7yJ6nmEAKXrft9W312Upsf4IdQ0eLLy2K8kDTaaNNo4gQOt2Pp3Bow/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -23,9 +23,11 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
+// Helper Format Nama Hari Bahasa Indonesia tanpa offset timezone
 function getNamaHari(dateString) {
   if (!dateString) return "-";
-  const parts = dateString.split('-');
+  const cleanDate = dateString.substring(0, 10);
+  const parts = cleanDate.split('-');
   if (parts.length !== 3) return dateString;
 
   const year = parseInt(parts[0], 10);
@@ -37,6 +39,7 @@ function getNamaHari(dateString) {
   return days[dateObj.getDay()] || "-";
 }
 
+// Helper Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
 function formatTanggalIndo(dateString) {
   if (!dateString) return "-";
   const cleanDate = dateString.substring(0, 10);
@@ -170,7 +173,9 @@ function switchTab(tabName) {
   }
 }
 
-// KEGIATAN LOGIC
+// -----------------------------------------------------------------------------
+// LOGIK KEGIATAN (BERANDA)
+// -----------------------------------------------------------------------------
 async function fetchKegiatan() {
   const loading = document.getElementById("loadingKegiatan");
   const list = document.getElementById("kegiatanList");
@@ -196,17 +201,19 @@ function renderKegiatan() {
   const container = document.getElementById("kegiatanList");
   container.innerHTML = "";
 
-  if (globalKegiatanData.length === 0) {
+  if (!globalKegiatanData || globalKegiatanData.length === 0) {
     container.innerHTML = `<div class="col-span-full text-center py-8 text-slate-400">Belum ada kegiatan.</div>`;
     return;
   }
 
   globalKegiatanData.forEach(item => {
-    const materiItems = item.materi_list && item.materi_list.length > 0
+    const namaKegiatanText = item.kegiatan || item.nama_kegiatan || "Tanpa Nama Kegiatan";
+
+    const materiItems = item.materi_list && Array.isArray(item.materi_list) && item.materi_list.length > 0
       ? item.materi_list.map((m, idx) => `<li class="text-xs text-slate-600"><span class="font-medium text-slate-700">Materi ${idx+1}:</span> ${m}</li>`).join('')
       : '<li class="text-xs text-slate-400 italic">Tidak ada materi</li>';
 
-    const penyampaiItems = item.penyampai_list && item.penyampai_list.length > 0
+    const penyampaiItems = item.penyampai_list && Array.isArray(item.penyampai_list) && item.penyampai_list.length > 0
       ? item.penyampai_list.map(p => `<span class="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200">${p}</span>`).join(' ')
       : '<span class="text-xs text-slate-400 italic">-</span>';
 
@@ -214,7 +221,7 @@ function renderKegiatan() {
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden">
         <div class="p-5">
           <div class="flex justify-between items-start gap-2 mb-2">
-            <h3 class="font-bold text-base text-slate-900 leading-snug">${item.kegiatan}</h3>
+            <h3 class="font-bold text-base text-slate-900 leading-snug">${namaKegiatanText}</h3>
             ${isAdmin ? `
             <div class="flex items-center gap-1">
               <button onclick="editKegiatan('${item.id}')" class="text-slate-400 hover:text-blue-600 p-1"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
@@ -296,6 +303,7 @@ function editKegiatan(id) {
   document.getElementById("inputHariTanggal").value = item.hari_tanggal || "";
   document.getElementById("inputJam").value = item.jam || "";
 
+  // Set Materi List
   document.getElementById("materiListContainer").innerHTML = "";
   if (item.materi_list && Array.isArray(item.materi_list) && item.materi_list.length > 0) {
     item.materi_list.forEach(m => addMateriInput(m));
@@ -303,6 +311,7 @@ function editKegiatan(id) {
     addMateriInput();
   }
 
+  // Set Penyampai List
   document.getElementById("penyampaiListContainer").innerHTML = "";
   if (item.penyampai_list && Array.isArray(item.penyampai_list) && item.penyampai_list.length > 0) {
     item.penyampai_list.forEach(p => addPenyampaiInput(p));
@@ -313,8 +322,12 @@ function editKegiatan(id) {
 
 async function saveKegiatan(e) {
   e.preventDefault();
-  const materi_list = Array.from(document.querySelectorAll(".materi-input")).map(i => i.value.trim()).filter(v => v !== "");
-  const penyampai_list = Array.from(document.querySelectorAll(".penyampai-input")).map(i => i.value.trim()).filter(v => v !== "");
+
+  const materiInputs = document.querySelectorAll(".materi-input");
+  const materi_list = Array.from(materiInputs).map(i => i.value.trim()).filter(v => v !== "");
+
+  const penyampaiInputs = document.querySelectorAll(".penyampai-input");
+  const penyampai_list = Array.from(penyampaiInputs).map(i => i.value.trim()).filter(v => v !== "");
 
   const namaKegiatanVal = document.getElementById("inputKegiatan").value.trim();
   if (!namaKegiatanVal) {
@@ -327,12 +340,17 @@ async function saveKegiatan(e) {
     kegiatan: namaKegiatanVal,
     hari_tanggal: document.getElementById("inputHariTanggal").value,
     jam: document.getElementById("inputJam").value,
-    materi_list, penyampai_list
+    materi_list: materi_list,
+    penyampai_list: penyampai_list
   };
 
   try {
-    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "saveKegiatan", payload }) });
+    const res = await fetch(API_URL, { 
+      method: "POST", 
+      body: JSON.stringify({ action: "saveKegiatan", payload: payload }) 
+    });
     const json = await res.json();
+
     if (json.status === "success") { 
       closeModalKegiatan(); 
       fetchKegiatan(); 
@@ -340,19 +358,28 @@ async function saveKegiatan(e) {
     } else {
       alert("Gagal menyimpan: " + json.message);
     }
-  } catch (err) { alert("Terjadi kesalahan koneksi."); }
+  } catch (err) { 
+    alert("Terjadi kesalahan koneksi saat menyimpan kegiatan."); 
+  }
 }
 
 async function deleteKegiatan(id) {
-  if (!confirm("Hapus kegiatan ini?")) return;
+  if (!confirm("Apakah Anda yakin ingin menghapus kegiatan ini?")) return;
   try {
-    const res = await fetch(API_URL, { method: "POST", body: JSON.stringify({ action: "deleteKegiatan", payload: { id } }) });
+    const res = await fetch(API_URL, { 
+      method: "POST", 
+      body: JSON.stringify({ action: "deleteKegiatan", payload: { id: id } }) 
+    });
     const json = await res.json();
     if (json.status === "success") fetchKegiatan();
-  } catch (err) { alert("Gagal menghapus."); }
+  } catch (err) { 
+    alert("Gagal menghapus kegiatan."); 
+  }
 }
 
-// PRESENSI KELOMPOK LOGIC
+// -----------------------------------------------------------------------------
+// LOGIK PRESENSI KELOMPOK
+// -----------------------------------------------------------------------------
 async function fetchPresensi(selectedDate) {
   const loading = document.getElementById("loadingPresensi");
   const grid = document.getElementById("presensiGrid");
@@ -536,7 +563,9 @@ async function simpanSemuaPenyapaan() {
   }
 }
 
-// REKAP HARIAN LOGIC
+// -----------------------------------------------------------------------------
+// LOGIK REKAP HARIAN
+// -----------------------------------------------------------------------------
 async function fetchRekapHarian() {
   const loading = document.getElementById("loadingRekap");
   const container = document.getElementById("rekapContainer");
