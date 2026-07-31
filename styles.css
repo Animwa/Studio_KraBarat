@@ -6,10 +6,10 @@
 .sapa-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 1.35rem;
-  height: 1.35rem;
-  border: 2px solid #cbd5e1;
-  border-radius: 0.375rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #3b82f6;
+  border-radius: 0.25rem;
   outline: none;
   cursor: pointer;
   display: grid;
@@ -18,14 +18,14 @@
 }
 
 .sapa-checkbox:checked {
-  background-color: #2563eb;
-  border-color: #2563eb;
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 .sapa-checkbox:checked::before {
   content: "";
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 0.65rem;
+  height: 0.65rem;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
   background-color: white;
 }
@@ -35,39 +35,47 @@
   cursor: not-allowed;
 }
 
-/* Responsive Card Kelompok */
-.kelompok-card {
+/* Desain Tabel Grid Kelompok Mirip Spreadsheet */
+.grid-table-kelompok {
+  border: 2px solid #2563eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: #eff6ff;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Header Baris Atas */
+.grid-table-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background-color: #dbeafe;
+  border-bottom: 2px solid #2563eb;
+}
+
+/* Baris Bawah Input Sapa */
+.grid-table-body {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  align-items: center;
+  background-color: #f0f9ff;
+}
+
+.grid-col-sapa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 0.6rem;
+  border-right: 2px solid #2563eb;
+}
+
+.grid-col-total {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-  padding: 1rem 1.25rem;
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.875rem;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-}
-
-@media (min-width: 640px) {
-  .kelompok-card {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-.kelompok-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
-}
-
-/* Badge Total Penyapaan Kotak Besar Berwarna */
-.badge-total-penyapaan {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border: 1.5px solid #93c5fd;
-  color: #1e40af;
-  padding: 0.35rem 0.85rem;
-  border-radius: 0.625rem;
-  font-size: 0.95rem;
-  font-weight: 800;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  background-color: #e0f2fe;
 }
