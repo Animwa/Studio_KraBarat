@@ -2,7 +2,7 @@
  * FRONTEND JAVASCRIPT LOGIC - OS STUDIO KARANGANYAR BARAT
  */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbziXGr-Z3TJZNwm7yJ6nmEAKXrft9W312Upsf4IdQ0eLLy2K8kDTaaNNo4gQOt2Pp3Bow/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxcUQudGO_tSw14OkWV5QuHMfLnwf3FNYM4qmLNiE2dsiMNKAtJy_CQu0MeyDdU9TQzfQ/exec";
 
 let isAdmin = false;
 let globalKegiatanData = [];
@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
   lucide.createIcons();
 });
 
-// Helper Format Nama Hari Bahasa Indonesia tanpa offset timezone
+// Helper Format Nama Hari
 function getNamaHari(dateString) {
   if (!dateString) return "-";
   const cleanDate = dateString.substring(0, 10);
@@ -39,7 +39,7 @@ function getNamaHari(dateString) {
   return days[dateObj.getDay()] || "-";
 }
 
-// Helper Format Tanggal Lengkap Bahasa Indonesia (Contoh: "Rabu, 29 Juli 2026")
+// Helper Format Tanggal Indonesia
 function formatTanggalIndo(dateString) {
   if (!dateString) return "-";
   const cleanDate = dateString.substring(0, 10);
@@ -76,8 +76,9 @@ function handleTanggalPresensiChange(selectedDate) {
   fetchPresensi(selectedDate);
 }
 
+// MANAGEMENT SESI DENGAN sessionStorage (HILANG JIKA TAB DITUTUP, TETAP SAAT REFRESH)
 function checkAdminStatus() {
-  const savedRole = localStorage.getItem("os_role");
+  const savedRole = sessionStorage.getItem("os_role");
   isAdmin = savedRole === "admin";
   updateRoleUI();
 }
@@ -89,15 +90,19 @@ function updateRoleUI() {
   const kegInput = document.getElementById("inputNamaKegiatanPresensi");
 
   if (isAdmin) {
-    badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200";
-    badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>Admin Mode</span>`;
-    authBtnText.innerText = "Logout";
+    if (badge) {
+      badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200";
+      badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>Admin Mode</span>`;
+    }
+    if (authBtnText) authBtnText.innerText = "Logout";
     adminElements.forEach(el => el.classList.remove("hidden"));
     if (kegInput) kegInput.disabled = false;
   } else {
-    badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200";
-    badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>Viewer</span>`;
-    authBtnText.innerText = "Login Admin";
+    if (badge) {
+      badge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200";
+      badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>Viewer</span>`;
+    }
+    if (authBtnText) authBtnText.innerText = "Login Admin";
     adminElements.forEach(el => el.classList.add("hidden"));
     if (kegInput) kegInput.disabled = true;
   }
@@ -106,12 +111,12 @@ function updateRoleUI() {
 
 function toggleAuthModal() {
   if (isAdmin) {
-    localStorage.removeItem("os_role");
+    sessionStorage.removeItem("os_role");
     isAdmin = false;
     updateRoleUI();
     renderKegiatan();
     renderPresensi();
-    alert("Keluar dari mode Admin.");
+    alert("Anda telah Logout dari Mode Admin.");
   } else {
     document.getElementById("modalAuth").classList.remove("hidden");
     document.getElementById("inputPin").value = "";
@@ -128,7 +133,7 @@ async function handleLogin(e) {
     const result = await res.json();
 
     if (result.status === "success") {
-      localStorage.setItem("os_role", "admin");
+      sessionStorage.setItem("os_role", "admin"); // Simpan ke sessionStorage
       isAdmin = true;
       updateRoleUI();
       document.getElementById("modalAuth").classList.add("hidden");
@@ -174,7 +179,7 @@ function switchTab(tabName) {
 }
 
 // -----------------------------------------------------------------------------
-// LOGIK KEGIATAN (BERANDA)
+// LOGIK KEGIATAN (TAMPILAN GRID LEBIH JELAS & BESAR)
 // -----------------------------------------------------------------------------
 async function fetchKegiatan() {
   const loading = document.getElementById("loadingKegiatan");
@@ -210,36 +215,50 @@ function renderKegiatan() {
     const namaKegiatanText = item.kegiatan || item.nama_kegiatan || "Tanpa Nama Kegiatan";
 
     const materiItems = item.materi_list && Array.isArray(item.materi_list) && item.materi_list.length > 0
-      ? item.materi_list.map((m, idx) => `<li class="text-xs text-slate-600"><span class="font-medium text-slate-700">Materi ${idx+1}:</span> ${m}</li>`).join('')
+      ? item.materi_list.map((m, idx) => `<li class="text-sm text-slate-700 font-medium"><span class="font-bold text-slate-900">Materi ${idx+1}:</span> ${m}</li>`).join('')
       : '<li class="text-xs text-slate-400 italic">Tidak ada materi</li>';
 
+    // PENAMPIAN PENYAMPAI MATERI
     const penyampaiItems = item.penyampai_list && Array.isArray(item.penyampai_list) && item.penyampai_list.length > 0
-      ? item.penyampai_list.map(p => `<span class="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200">${p}</span>`).join(' ')
+      ? item.penyampai_list.map(p => `<span class="inline-block bg-blue-50 text-blue-800 font-semibold px-2.5 py-1 rounded-md text-xs border border-blue-200">${p}</span>`).join(' ')
       : '<span class="text-xs text-slate-400 italic">-</span>';
 
     const cardHtml = `
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden">
-        <div class="p-5">
-          <div class="flex justify-between items-start gap-2 mb-2">
-            <h3 class="font-bold text-base text-slate-900 leading-snug">${namaKegiatanText}</h3>
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden p-6 space-y-4">
+        <div>
+          <div class="flex justify-between items-start gap-3 mb-3">
+            <h3 class="font-extrabold text-lg text-slate-900 leading-snug">${namaKegiatanText}</h3>
             ${isAdmin ? `
-            <div class="flex items-center gap-1">
-              <button onclick="editKegiatan('${item.id}')" class="text-slate-400 hover:text-blue-600 p-1"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-              <button onclick="deleteKegiatan('${item.id}')" class="text-slate-400 hover:text-rose-600 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            <div class="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+              <button onclick="editKegiatan('${item.id}')" title="Edit Kegiatan" class="text-slate-400 hover:text-blue-600 p-1.5 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+              <button onclick="deleteKegiatan('${item.id}')" title="Hapus Kegiatan" class="text-slate-400 hover:text-rose-600 p-1.5 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </div>
             ` : ''}
           </div>
-          <div class="space-y-1.5 text-xs text-slate-500 mb-4">
-            <div class="flex items-center gap-2"><i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-600"></i><span>${formatTanggalIndo(item.hari_tanggal)}</span></div>
-            <div class="flex items-center gap-2"><i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i><span>${item.jam || '-'}</span></div>
+
+          <div class="space-y-2 text-xs font-semibold text-slate-500 mb-5 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+            <div class="flex items-center gap-2">
+              <i data-lucide="calendar" class="w-4 h-4 text-blue-600"></i>
+              <span class="text-slate-700">${formatTanggalIndo(item.hari_tanggal)}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-blue-600"></i>
+              <span class="text-slate-700">${item.jam || '-'}</span>
+            </div>
           </div>
-          <div class="space-y-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Materi Pembahasan</p>
-            <ul class="space-y-1 list-disc list-inside">${materiItems}</ul>
+
+          <div class="space-y-2 mb-4 bg-slate-50/50 p-3.5 rounded-xl border border-slate-200/80">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Materi Pembahasan</p>
+            <ul class="space-y-1.5 list-disc list-inside">
+              ${materiItems}
+            </ul>
           </div>
-          <div class="space-y-1">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Penyampai</p>
-            <div class="flex flex-wrap gap-1">${penyampaiItems}</div>
+
+          <div class="space-y-2">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Penyampai Materi</p>
+            <div class="flex flex-wrap gap-1.5">
+              ${penyampaiItems}
+            </div>
           </div>
         </div>
       </div>
@@ -254,7 +273,7 @@ function addMateriInput(value = "") {
   const div = document.createElement("div");
   div.className = "flex gap-2 items-center";
   div.innerHTML = `
-    <input type="text" value="${value}" placeholder="Judul / Topik Materi" class="materi-input w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+    <input type="text" value="${value}" placeholder="Judul / Topik Materi" class="materi-input w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
     <button type="button" onclick="this.parentElement.remove()" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
   `;
   container.appendChild(div);
@@ -266,7 +285,7 @@ function addPenyampaiInput(value = "") {
   const div = document.createElement("div");
   div.className = "flex gap-2 items-center";
   div.innerHTML = `
-    <input type="text" value="${value}" placeholder="Nama Ustadz / Pemateri" class="penyampai-input w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+    <input type="text" value="${value}" placeholder="Nama Ustadz / Pemateri" class="penyampai-input w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
     <button type="button" onclick="this.parentElement.remove()" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
   `;
   container.appendChild(div);
@@ -303,7 +322,6 @@ function editKegiatan(id) {
   document.getElementById("inputHariTanggal").value = item.hari_tanggal || "";
   document.getElementById("inputJam").value = item.jam || "";
 
-  // Set Materi List
   document.getElementById("materiListContainer").innerHTML = "";
   if (item.materi_list && Array.isArray(item.materi_list) && item.materi_list.length > 0) {
     item.materi_list.forEach(m => addMateriInput(m));
@@ -311,7 +329,6 @@ function editKegiatan(id) {
     addMateriInput();
   }
 
-  // Set Penyampai List
   document.getElementById("penyampaiListContainer").innerHTML = "";
   if (item.penyampai_list && Array.isArray(item.penyampai_list) && item.penyampai_list.length > 0) {
     item.penyampai_list.forEach(p => addPenyampaiInput(p));
@@ -433,7 +450,6 @@ function renderPresensi() {
       const isSapa = item.status_sapa === true;
       const isBelumSapa = item.status_belum_sapa === true;
 
-      // Status Indikator Badge
       let statusBadgeHtml = "";
       if (item.is_dirty) {
         statusBadgeHtml = `<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200">Draf</span>`;
@@ -453,7 +469,7 @@ function renderPresensi() {
               <i data-lucide="star" class="w-3 h-3 fill-amber-500 text-amber-500"></i> Rekomendasi
             </span>
             ` : ''}
-            <span class="text-sm font-semibold text-slate-800">${item.nama_kelompok}</span>
+            <span class="text-sm font-bold text-slate-800">${item.nama_kelompok}</span>
             ${statusBadgeHtml}
           </div>
 
