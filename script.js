@@ -1,7 +1,7 @@
 // ==========================================
 // KONFIGURASI URL GOOGLE APPS SCRIPT
 // ==========================================
-const currentGasUrl = "https://script.google.com/macros/s/AKfycbzmcClfdGH-LiQ144JMkIs53arcaH4eDzKaogCDTmUsunFOWBP7GQiqc8Yau58RdJAL/exec";
+const currentGasUrl = "https://script.google.com/macros/s/AKfycbytYYNEw5JVjVBqScuvpk7rde8iNWQvtfVNKIiIGBOV-HWUdmUweyPX0KHQ6MjV6v8f/exec";
 
 // Global State
 let appData = {
@@ -26,13 +26,19 @@ document.addEventListener("DOMContentLoaded", () => {
     updateAuthUI();
     loadAppData();
     
-    // Set tanggal default hari ini pada input penyapaan
     const todayStr = new Date().toISOString().split("T")[0];
     const dateInput = document.getElementById("penyapaanTanggal");
-    if (dateInput && !dateInput.value) dateInput.value = todayStr;
+    if (dateInput && !dateInput.value) {
+        dateInput.value = todayStr;
+        dateInput.addEventListener("change", renderPenyapaan);
+    }
+    
+    const nameInput = document.getElementById("penyapaanKegiatanNama");
+    if (nameInput) {
+        nameInput.addEventListener("input", renderPenyapaan);
+    }
 });
 
-// Helper Format Tanggal Indonesia
 function formatDateIndo(dateStr) {
     if (!dateStr) return '-';
     try {
@@ -394,13 +400,28 @@ async function submitPresensiData() {
 }
 
 // ==========================================
-// MODUL 2: PENYAPAAN (SORTING KECIL KE BESAR, REKOMENDASI DI ATAS, TURUN KE BAWAH)
+// MODUL 2: PENYAPAAN (DENGAN STATUS TERSIMPAN HARI INI UNTUK VIEWER & UPSERT)
 // ==========================================
 function renderPenyapaan() {
     const container = document.getElementById("penyapaanGridContainer");
     if (!container) return;
 
-    // Hitung frekuensi disapa per kelompok
+    const currentNamaKegiatan = document.getElementById("penyapaanKegiatanNama")?.value.trim() || "";
+    const currentTanggal = document.getElementById("penyapaanTanggal")?.value || new Date().toISOString().split("T")[0];
+
+    // Peta status sapa yang sudah tersimpan untuk kegiatan & tanggal yang sedang dipilih
+    const currentDaySapaMap = {};
+    appData.penyapaan.forEach(p => {
+        const pKegiatan = (p.NamaKegiatan || p.namaKegiatan || "").trim();
+        const pTanggal = (p.Tanggal || p.tanggal || "").trim();
+        if (pKegiatan === currentNamaKegiatan && pTanggal === currentTanggal) {
+            const d = p.Desa || p.desa;
+            const k = p.Kelompok || p.kelompok;
+            currentDaySapaMap[`${d}_${k}`] = p.Status || p.status;
+        }
+    });
+
+    // Hitung frekuensi akumulasi disapa keseluruhan per kelompok
     const freqMap = {};
     appData.penyapaan.forEach(p => {
         if ((p.Status || p.status) === "Sapa") {
@@ -416,7 +437,6 @@ function renderPenyapaan() {
     container.innerHTML = desaList.map(desa => {
         const kelList = appData.wilayah.filter(w => w.Desa === desa);
         
-        // Urutkan dari jumlah disapa terkecil ke terbesar (4 teratas otomatis rekomendasi di atas, sisanya turun ke bawah)
         const sortedKel = [...kelList].sort((a, b) => {
             const countA = freqMap[`${desa}_${a.Kelompok}`] || 0;
             const countB = freqMap[`${desa}_${b.Kelompok}`] || 0;
@@ -426,25 +446,28 @@ function renderPenyapaan() {
             return a.Kelompok.localeCompare(b.Kelompok);
         });
 
-        // 4 teratas sebagai rekomendasi
         const recommendedSet = new Set(sortedKel.slice(0, 4).map(k => k.Kelompok));
 
         return `
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                 <div class="border-b pb-3 flex justify-between items-center">
                     <h3 class="font-bold text-lg text-slate-800">${desa}</h3>
-                    <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-full">Diurutkan (Rekomendasi di Atas)</span>
+                    <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-full">4 Rekomendasi Teratas di Atas</span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     ${sortedKel.map(k => {
                         const isRec = recommendedSet.has(k.Kelompok);
                         const count = freqMap[`${desa}_${k.Kelompok}`] || 0;
+                        const savedStatus = currentDaySapaMap[`${desa}_${k.Kelompok}`] || "Belum Sapa";
+                        const isSapa = (savedStatus === "Sapa");
+
                         return `
                             <div class="p-4 rounded-xl border ${isRec ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/50'} flex flex-col justify-between space-y-3 relative">
                                 ${isRec ? '<span class="absolute top-2 right-2 text-xs bg-amber-400 text-white px-2.5 py-0.5 rounded-full font-bold shadow-xs">⭐ Rekomendasi</span>' : ''}
                                 <div class="flex justify-between items-start pt-1">
                                     <div class="pr-2">
                                         <h4 class="font-bold text-slate-800 text-sm mb-0.5">${k.Kelompok}</h4>
+                                        ${isSapa ? '<span class="inline-block mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md"><i class="fa-solid fa-check mr-1"></i> Tersapa Hari Ini</span>' : ''}
                                     </div>
                                     <div class="flex flex-col items-center justify-center bg-white border border-emerald-200 rounded-xl px-2.5 py-1 shadow-xs min-w-[50px]">
                                         <span class="text-[10px] uppercase font-bold text-emerald-600 leading-none">Disapa</span>
@@ -453,11 +476,11 @@ function renderPenyapaan() {
                                 </div>
                                 <div class="flex items-center space-x-2 pt-2 border-t border-slate-200/60">
                                     <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-700">
-                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Sapa" class="sapa-radio text-emerald-600" data-desa="${desa}" data-kelompok="${k.Kelompok}">
+                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Sapa" class="sapa-radio text-emerald-600" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
                                         <span>Sapa</span>
                                     </label>
                                     <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-700">
-                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Belum Sapa" class="sapa-radio text-slate-500" data-desa="${desa}" data-kelompok="${k.Kelompok}" checked>
+                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Belum Sapa" class="sapa-radio text-slate-500" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${!isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
                                         <span>Belum</span>
                                     </label>
                                 </div>
@@ -506,22 +529,23 @@ async function submitPenyapaanData() {
     try {
         await callGasBackend(payload);
         
-        // Update local state (Upsert to prevent duplicate)
+        // Update local state secara cerdas (Upsert / Update jika sudah ada, Insert jika baru)
         items.forEach(newItem => {
             const existingIdx = appData.penyapaan.findIndex(p => 
-                (p.NamaKegiatan || p.namaKegiatan) === namaKegiatan && 
-                (p.Tanggal || p.tanggal) === tanggal && 
+                (p.NamaKegiatan || p.namaKegiatan || "").trim() === namaKegiatan && 
+                (p.Tanggal || p.tanggal || "").trim() === tanggal && 
                 (p.Desa || p.desa) === newItem.desa && 
                 (p.Kelompok || p.kelompok) === newItem.kelompok
             );
             if (existingIdx > -1) {
                 appData.penyapaan[existingIdx].Status = newItem.status;
+                appData.penyapaan[existingIdx].status = newItem.status;
             } else {
                 appData.penyapaan.push(newItem);
             }
         });
 
-        alert("Data penyapaan berhasil disimpan dan terekap (Anti-Duplikat)!");
+        alert("Data penyapaan berhasil diperbarui dan disimpan secara terpusat!");
         renderPenyapaan();
         renderRekap();
         if (isAdmin) {
