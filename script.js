@@ -664,7 +664,6 @@ function populateEvaluasiFilters() {
         desaFilter.value = currentDesa;
     }
 }
-
 function renderEvaluasi() {
     const tbody = document.getElementById("evaluasiTableBody");
     if (!tbody) return;
@@ -672,9 +671,10 @@ function renderEvaluasi() {
     const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
     const filterDesa = document.getElementById("evaluasiDesaFilter")?.value || "ALL";
 
-    // Indikator Kelompok Belum Mengisi Presensi
+    // Indikator Kelompok Belum Mengisi Presensi beserta Jumlah Totalnya
     const missingWrapper = document.getElementById("missingPresensiWrapper");
     const missingList = document.getElementById("missingPresensiList");
+    const missingTitle = document.getElementById("missingPresensiTitle");
     
     if (filterActivityId !== "ALL") {
         const filledGroups = new Set(
@@ -687,6 +687,9 @@ function renderEvaluasi() {
         
         if (unfulfilled.length > 0) {
             missingWrapper.classList.remove("hidden");
+            if (missingTitle) {
+                missingTitle.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Kelompok Belum Mengisi Presensi pada Kegiatan Ini (<span class="font-extrabold underline">${unfulfilled.length} Kelompok</span>):`;
+            }
             missingList.innerHTML = unfulfilled.map(u => `
                 <span class="px-2.5 py-1 bg-white border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg shadow-xs">
                     ${u.Desa} - ${u.Kelompok}
@@ -752,11 +755,10 @@ function renderEvaluasi() {
     document.getElementById("summaryTotalIzin").textContent = sumIzin;
     document.getElementById("summaryTotalAlfa").textContent = sumAlfa;
 
-    // Filter wilayah berdasarkan filterDesa
     const displayedWilayah = filterDesa === "ALL" ? appData.wilayah : appData.wilayah.filter(w => w.Desa === filterDesa);
 
     if (displayedWilayah.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">Tidak ada data wilayah yang sesuai filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">Tidak ada data wilayah yang sesuai filter.</td></tr>`;
         return;
     }
 
@@ -764,6 +766,9 @@ function renderEvaluasi() {
         const key = `${w.Desa}_${w.Kelompok}`;
         const totalDisapa = freqMap[key] || 0;
         const pres = presensiMap[key] || { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
+        
+        // Menghitung jumlah total keseluruhan (Hadir + Izin + Alfa untuk Putra & Putri)
+        const rowTotal = pres.hadirPa + pres.izinPa + pres.alfaPa + pres.hadirPi + pres.izinPi + pres.alfaPi;
 
         return `
             <tr class="hover:bg-slate-50 transition">
@@ -774,6 +779,7 @@ function renderEvaluasi() {
                 <td class="p-4 text-center font-semibold text-emerald-600">${pres.hadirPa} / ${pres.hadirPi}</td>
                 <td class="p-4 text-center font-semibold text-amber-600">${pres.izinPa} / ${pres.izinPi}</td>
                 <td class="p-4 text-center font-semibold text-rose-600">${pres.alfaPa} / ${pres.alfaPi}</td>
+                <td class="p-4 text-center font-bold text-slate-700 bg-slate-50/50">${rowTotal}</td>
             </tr>
         `;
     }).join("");
