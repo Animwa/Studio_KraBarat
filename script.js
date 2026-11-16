@@ -1,7 +1,7 @@
 // ==========================================
 // KONFIGURASI URL GOOGLE APPS SCRIPT
 // ==========================================
-const currentGasUrl = "https://script.google.com/macros/s/AKfycbxYHINaLSvI_EpiT4gHx99Y6lt3twt_S6efgR9vzvBaCVhd7cXc6ALqqXymYFujcoFa/exec";
+const currentGasUrl = "https://script.google.com/macros/s/AKfycbyATb9opyU_92u_oha8RM6Vo_sMi8TbfzM5vpFibAcLE8sOM717ln6cm-LNZwYaUvhi/exec";
 
 // Global State
 let appData = {
@@ -229,13 +229,13 @@ function renderAllTabs() {
     renderPenyapaan();
     renderRekap();
     if (isAdmin) {
-        populateEvaluasiActivityFilter();
+        populateEvaluasiFilters();
         renderEvaluasi();
     }
 }
 
 // ==========================================
-// MODUL 1: BERANDA & PRESENSI (UPSERT)
+// MODUL 1: BERANDA & PRESENSI (PUTRA & PUTRI + KETERANGAN)
 // ==========================================
 function renderBeranda() {
     const container = document.getElementById("activityListContainer");
@@ -301,7 +301,7 @@ async function saveNewActivity() {
         appData.aktivitas.push({ Id: res.id || ("ACT_" + Date.now()), NamaKegiatan: namaKegiatan, Tanggal: tanggal, Materi: materi, Penyampai: penyampai });
         closeActivityModal();
         renderBeranda();
-        if (isAdmin) populateEvaluasiActivityFilter();
+        if (isAdmin) populateEvaluasiFilters();
         alert("Kegiatan berhasil dibuat!");
     } catch (e) {
         alert("Gagal menyimpan kegiatan.");
@@ -343,14 +343,22 @@ function onPresensiKelompokChange() {
     
     if (existing) {
         notice.classList.remove("hidden");
-        document.getElementById("inputHadir").value = existing.Hadir !== undefined && existing.Hadir !== "" ? existing.Hadir : "";
-        document.getElementById("inputIzin").value = existing.Izin !== undefined && existing.Izin !== "" ? existing.Izin : "";
-        document.getElementById("inputAlfa").value = existing.Alfa !== undefined && existing.Alfa !== "" ? existing.Alfa : "";
+        document.getElementById("inputHadirPutra").value = existing.HadirPutra ?? "";
+        document.getElementById("inputIzinPutra").value = existing.IzinPutra ?? "";
+        document.getElementById("inputAlfaPutra").value = existing.AlfaPutra ?? "";
+        document.getElementById("inputHadirPutri").value = existing.HadirPutri ?? "";
+        document.getElementById("inputIzinPutri").value = existing.IzinPutri ?? "";
+        document.getElementById("inputAlfaPutri").value = existing.AlfaPutri ?? "";
+        document.getElementById("inputKeterangan").value = existing.Keterangan ?? "";
     } else {
         notice.classList.add("hidden");
-        document.getElementById("inputHadir").value = "";
-        document.getElementById("inputIzin").value = "";
-        document.getElementById("inputAlfa").value = "";
+        document.getElementById("inputHadirPutra").value = "";
+        document.getElementById("inputIzinPutra").value = "";
+        document.getElementById("inputAlfaPutra").value = "";
+        document.getElementById("inputHadirPutri").value = "";
+        document.getElementById("inputIzinPutri").value = "";
+        document.getElementById("inputAlfaPutri").value = "";
+        document.getElementById("inputKeterangan").value = "";
     }
 }
 
@@ -358,13 +366,15 @@ async function submitPresensiData() {
     const desa = document.getElementById("presensiDesaSelect").value;
     const kelompok = document.getElementById("presensiKelompokSelect").value;
     
-    const rawHadir = document.getElementById("inputHadir").value;
-    const rawIzin = document.getElementById("inputIzin").value;
-    const rawAlfa = document.getElementById("inputAlfa").value;
-
-    const hadir = rawHadir === "" ? 0 : parseInt(rawHadir) || 0;
-    const izin = rawIzin === "" ? 0 : parseInt(rawIzin) || 0;
-    const alfa = rawAlfa === "" ? 0 : parseInt(rawAlfa) || 0;
+    const hadirPutra = parseInt(document.getElementById("inputHadirPutra").value) || 0;
+    const izinPutra = parseInt(document.getElementById("inputIzinPutra").value) || 0;
+    const alfaPutra = parseInt(document.getElementById("inputAlfaPutra").value) || 0;
+    
+    const hadirPutri = parseInt(document.getElementById("inputHadirPutri").value) || 0;
+    const izinPutri = parseInt(document.getElementById("inputIzinPutri").value) || 0;
+    const alfaPutri = parseInt(document.getElementById("inputAlfaPutri").value) || 0;
+    
+    const keterangan = document.getElementById("inputKeterangan").value.trim();
 
     if (!activeActivityIdForPresensi) return;
 
@@ -373,9 +383,9 @@ async function submitPresensiData() {
         activityId: activeActivityIdForPresensi,
         desa,
         kelompok,
-        hadir,
-        izin,
-        alfa
+        hadirPutra, izinPutra, alfaPutra,
+        hadirPutri, izinPutri, alfaPutri,
+        keterangan
     };
 
     try {
@@ -383,11 +393,9 @@ async function submitPresensiData() {
         
         const idx = appData.presensi.findIndex(p => p.ActivityId === activeActivityIdForPresensi && p.Desa === desa && p.Kelompok === kelompok);
         if (idx > -1) {
-            appData.presensi[idx].Hadir = hadir;
-            appData.presensi[idx].Izin = izin;
-            appData.presensi[idx].Alfa = alfa;
+            appData.presensi[idx] = { ActivityId: activeActivityIdForPresensi, Desa: desa, Kelompok: kelompok, HadirPutra: hadirPutra, IzinPutra: izinPutra, AlfaPutra: alfaPutra, HadirPutri: hadirPutri, IzinPutri: izinPutri, AlfaPutri: alfaPutri, Keterangan: keterangan };
         } else {
-            appData.presensi.push({ ActivityId: activeActivityIdForPresensi, Desa: desa, Kelompok: kelompok, Hadir: hadir, Izin: izin, Alfa: alfa });
+            appData.presensi.push({ ActivityId: activeActivityIdForPresensi, Desa: desa, Kelompok: kelompok, HadirPutra: hadirPutra, IzinPutra: izinPutra, AlfaPutra: alfaPutra, HadirPutri: hadirPutri, IzinPutri: izinPutri, AlfaPutri: alfaPutri, Keterangan: keterangan });
         }
 
         closePresensiModal();
@@ -400,7 +408,7 @@ async function submitPresensiData() {
 }
 
 // ==========================================
-// MODUL 2: PENYAPAAN (PERSISTENT STATE & TANDA TERSIMPAN DI SAMPING OPSI)
+// MODUL 2: PENYAPAAN
 // ==========================================
 function renderPenyapaan() {
     const container = document.getElementById("penyapaanGridContainer");
@@ -409,7 +417,6 @@ function renderPenyapaan() {
     const currentNamaKegiatan = document.getElementById("penyapaanKegiatanNama")?.value.trim() || "";
     const currentTanggal = document.getElementById("penyapaanTanggal")?.value || new Date().toISOString().split("T")[0];
 
-    // Peta status sapa yang sudah tersimpan untuk kegiatan & tanggal yang sedang dipilih
     const currentDaySapaMap = {};
     appData.penyapaan.forEach(p => {
         const pKegiatan = (p.NamaKegiatan || p.namaKegiatan || "").trim();
@@ -421,7 +428,6 @@ function renderPenyapaan() {
         }
     });
 
-    // Hitung frekuensi akumulasi disapa keseluruhan per kelompok
     const freqMap = {};
     appData.penyapaan.forEach(p => {
         if ((p.Status || p.status) === "Sapa") {
@@ -484,7 +490,6 @@ function renderPenyapaan() {
                                             <span>Belum</span>
                                         </label>
                                     </div>
-                                    <!-- Tanda Status Tersimpan di Bagian Samping Opsi -->
                                     <div>
                                         ${isSapa ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md shadow-xs"><i class="fa-solid fa-check mr-0.5"></i> Tersimpan</span>' : '<span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-medium rounded-md">Belum</span>'}
                                     </div>
@@ -534,7 +539,6 @@ async function submitPenyapaanData() {
     try {
         await callGasBackend(payload);
         
-        // Update local state secara cerdas (Upsert) tanpa membuat entri duplikat
         items.forEach(newItem => {
             const existingIdx = appData.penyapaan.findIndex(p => 
                 (p.NamaKegiatan || p.namaKegiatan || "").trim() === namaKegiatan && 
@@ -542,11 +546,17 @@ async function submitPenyapaanData() {
                 (p.Desa || p.desa) === newItem.desa && 
                 (p.Kelompok || p.kelompok) === newItem.kelompok
             );
-            if (existingIdx > -1) {
-                appData.penyapaan[existingIdx].Status = newItem.status;
-                appData.penyapaan[existingIdx].status = newItem.status;
+            if (newItem.status === "Sapa") {
+                if (existingIdx > -1) {
+                    appData.penyapaan[existingIdx].Status = "Sapa";
+                    appData.penyapaan[existingIdx].status = "Sapa";
+                } else {
+                    appData.penyapaan.push(newItem);
+                }
             } else {
-                appData.penyapaan.push(newItem);
+                if (existingIdx > -1) {
+                    appData.penyapaan.splice(existingIdx, 1);
+                }
             }
         });
 
@@ -554,7 +564,7 @@ async function submitPenyapaanData() {
         renderPenyapaan();
         renderRekap();
         if (isAdmin) {
-            populateEvaluasiActivityFilter();
+            populateEvaluasiFilters();
             renderEvaluasi();
         }
     } catch (e) {
@@ -633,17 +643,26 @@ function renderRekap() {
 }
 
 // ==========================================
-// MODUL 4: EVALUASI (KHUSUS ADMIN)
+// MODUL 4: EVALUASI (DENGAN FILTER DESA, NO, & INDIKATOR BELUM MENGISI)
 // ==========================================
-function populateEvaluasiActivityFilter() {
-    const filterSelect = document.getElementById("evaluasiActivityFilter");
-    if (!filterSelect) return;
-
-    const currentVal = filterSelect.value;
-    filterSelect.innerHTML = `<option value="ALL">Semua Kegiatan</option>` + 
-        appData.aktivitas.map(act => `<option value="${act.Id}">${act.NamaKegiatan} (${formatDateIndo(act.Tanggal)})</option>`).join("");
+function populateEvaluasiFilters() {
+    const actFilter = document.getElementById("evaluasiActivityFilter");
+    const desaFilter = document.getElementById("evaluasiDesaFilter");
     
-    filterSelect.value = currentVal;
+    if (actFilter) {
+        const currentAct = actFilter.value;
+        actFilter.innerHTML = `<option value="ALL">Semua Kegiatan</option>` + 
+            appData.aktivitas.map(act => `<option value="${act.Id}">${act.NamaKegiatan} (${formatDateIndo(act.Tanggal)})</option>`).join("");
+        actFilter.value = currentAct;
+    }
+
+    if (desaFilter) {
+        const currentDesa = desaFilter.value;
+        const desaSet = [...new Set(appData.wilayah.map(w => w.Desa))];
+        desaFilter.innerHTML = `<option value="ALL">Semua Desa</option>` + 
+            desaSet.map(d => `<option value="${d}">${d}</option>`).join("");
+        desaFilter.value = currentDesa;
+    }
 }
 
 function renderEvaluasi() {
@@ -651,6 +670,34 @@ function renderEvaluasi() {
     if (!tbody) return;
 
     const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
+    const filterDesa = document.getElementById("evaluasiDesaFilter")?.value || "ALL";
+
+    // Indikator Kelompok Belum Mengisi Presensi
+    const missingWrapper = document.getElementById("missingPresensiWrapper");
+    const missingList = document.getElementById("missingPresensiList");
+    
+    if (filterActivityId !== "ALL") {
+        const filledGroups = new Set(
+            appData.presensi
+                .filter(pr => (pr.ActivityId || pr.activityId) === filterActivityId)
+                .map(pr => `${pr.Desa || pr.desa}_${pr.Kelompok || pr.kelompok}`)
+        );
+
+        const unfulfilled = appData.wilayah.filter(w => !filledGroups.has(`${w.Desa}_${w.Kelompok}`));
+        
+        if (unfulfilled.length > 0) {
+            missingWrapper.classList.remove("hidden");
+            missingList.innerHTML = unfulfilled.map(u => `
+                <span class="px-2.5 py-1 bg-white border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg shadow-xs">
+                    ${u.Desa} - ${u.Kelompok}
+                </span>
+            `).join("");
+        } else {
+            missingWrapper.classList.add("hidden");
+        }
+    } else {
+        missingWrapper.classList.add("hidden");
+    }
 
     const freqMap = {};
     appData.penyapaan.forEach(p => {
@@ -676,38 +723,57 @@ function renderEvaluasi() {
         const desaName = pr.Desa || pr.desa;
         const kelName = pr.Kelompok || pr.kelompok;
         const key = `${desaName}_${kelName}`;
-        if (!presensiMap[key]) presensiMap[key] = { hadir: 0, izin: 0, alfa: 0 };
+        if (!presensiMap[key]) {
+            presensiMap[key] = { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
+        }
         
-        const h = parseInt(pr.Hadir ?? pr.hadir) || 0;
-        const i = parseInt(pr.Izin ?? pr.izin) || 0;
-        const a = parseInt(pr.Alfa ?? pr.alfa) || 0;
+        const hPa = parseInt(pr.HadirPutra ?? pr.hadirPutra) || 0;
+        const iPa = parseInt(pr.IzinPutra ?? pr.izinPutra) || 0;
+        const aPa = parseInt(pr.AlfaPutra ?? pr.alfaPutra) || 0;
+        
+        const hPi = parseInt(pr.HadirPutri ?? pr.hadirPutri) || 0;
+        const iPi = parseInt(pr.IzinPutri ?? pr.izinPutri) || 0;
+        const aPi = parseInt(pr.AlfaPutri ?? pr.alfaPutri) || 0;
 
-        presensiMap[key].hadir += h;
-        presensiMap[key].izin += i;
-        presensiMap[key].alfa += a;
+        presensiMap[key].hadirPa += hPa;
+        presensiMap[key].izinPa += iPa;
+        presensiMap[key].alfaPa += aPa;
+        
+        presensiMap[key].hadirPi += hPi;
+        presensiMap[key].izinPi += iPi;
+        presensiMap[key].alfaPi += aPi;
 
-        sumHadir += h;
-        sumIzin += i;
-        sumAlfa += a;
+        sumHadir += (hPa + hPi);
+        sumIzin += (iPa + iPi);
+        sumAlfa += (aPa + aPi);
     });
 
     document.getElementById("summaryTotalHadir").textContent = sumHadir;
     document.getElementById("summaryTotalIzin").textContent = sumIzin;
     document.getElementById("summaryTotalAlfa").textContent = sumAlfa;
 
-    tbody.innerHTML = appData.wilayah.map(w => {
+    // Filter wilayah berdasarkan filterDesa
+    const displayedWilayah = filterDesa === "ALL" ? appData.wilayah : appData.wilayah.filter(w => w.Desa === filterDesa);
+
+    if (displayedWilayah.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">Tidak ada data wilayah yang sesuai filter.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = displayedWilayah.map((w, index) => {
         const key = `${w.Desa}_${w.Kelompok}`;
         const totalDisapa = freqMap[key] || 0;
-        const pres = presensiMap[key] || { hadir: 0, izin: 0, alfa: 0 };
+        const pres = presensiMap[key] || { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
 
         return `
             <tr class="hover:bg-slate-50 transition">
+                <td class="p-4 text-center font-medium text-slate-500">${index + 1}</td>
                 <td class="p-4 font-medium text-slate-800">${w.Desa}</td>
                 <td class="p-4 text-slate-600">${w.Kelompok}</td>
                 <td class="p-4 text-center font-semibold text-emerald-700">${totalDisapa}x</td>
-                <td class="p-4 text-center font-semibold text-emerald-600">${pres.hadir}</td>
-                <td class="p-4 text-center font-semibold text-amber-600">${pres.izin}</td>
-                <td class="p-4 text-center font-semibold text-rose-600">${pres.alfa}</td>
+                <td class="p-4 text-center font-semibold text-emerald-600">${pres.hadirPa} / ${pres.hadirPi}</td>
+                <td class="p-4 text-center font-semibold text-amber-600">${pres.izinPa} / ${pres.izinPi}</td>
+                <td class="p-4 text-center font-semibold text-rose-600">${pres.alfaPa} / ${pres.alfaPi}</td>
             </tr>
         `;
     }).join("");
