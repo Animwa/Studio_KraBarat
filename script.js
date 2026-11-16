@@ -1,649 +1,691 @@
 /**
- * FRONTEND LOGIC: OS Studio Karanganyar Barat
+ * Logika Frontend Terpisah untuk OS Studio Karanganyar Barat (script.js)
  */
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxp6XUW3_wWvauoQLZFMD39zIp_4PO6zrT_jJ1Q8kTETStPYNuv1XFKYhqP_BbfGU0q/exec';
 
-const state = {
-  isAdmin: sessionStorage.getItem('os_studio_admin') === 'true',
-  adminUser: sessionStorage.getItem('os_studio_user') || '',
-  activeTab: 'beranda',
-  master: [],
-  kegiatan: [],
-  presensi: [],
-  logoTapCount: 0,
-  logoTapTimer: null
+// ================= DATA MASTER WILAYAH & KELOMPOK =================
+const MASTER_WILAYAH = {
+    "Banjarharjo": ["Mojotelu Timur", "Mojotelu Barat", "Babatok Selatan", "Babatok Utara", "Manggal Barat", "Manggal Utara", "Manggal Timur", "Mirukun", "Karangmanis", "Sumberan", "Jatiarum"],
+    "Kaling": ["Sarirejo", "Alastuwo", "Ngemplak", "Kaling", "Kauman", "Celengan", "Gulunan", "Pandeyan", "Suruh 1", "Suruh 2", "Kalijirak"],
+    "Karangmojo": ["Karangmojo Timur", "Karangmojo Barat", "Karangmojo Utara", "Jongkang", "Ngamban Timur", "Ngamban Barat", "Sawahan", "Tegalarum", "Kodokan", "Kranggan", "Jetis", "Dawan"],
+    "Jaten": ["Celep", "Bulu Utara", "Bulu Selatan 1", "Bulu Selatan 2", "Jatimalang", "Sapen", "Ngiri Barat", "Ngiri Timur", "Ngiri Utara", "Karangsono", "Jumok 1", "Jumok 2"]
 };
+
+// ================= KONFIGURASI URL WEB APP APPS SCRIPT =================
+// Letakkan URL Web App Google Apps Script Anda di dalam tanda kutip di bawah ini:
+// Contoh: "https://script.google.com/macros/s/AKfycbz.../exec"
+let currentGasUrl = "https://script.google.com/macros/s/AKfycbzwfXbBxkoGrqpWn6skzNRd_PoufSHikYZUsjI3Pw2gRShxHviyWWabYzcTtcuUQN7G/exec" || localStorage.getItem('OS_GAS_URL') || '';
+
+let isAdmin = sessionStorage.getItem('OS_IS_ADMIN') === 'true';
+let logoClickCount = 0;
+let logoClickTimer = null;
+
+// State Aplikasi
+let appSessions = [];
+let appPenyapaanSummary = {}; 
+let appGlobalPenyapaanState = {}; 
+let activeSessionIdForPresensi = null;
+let currentPresensiData = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
-  lucide.createIcons();
-  setupHiddenAdminTriggers();
-  setupNavigation();
-  setupForms();
-  applyAdminUIState();
-  setAutoIndonesianDate();
-  fetchInitialData();
+    initAuthUI();
+    setupSecretTriggers();
+    
+    // Cek apakah URL GAS sudah diatur
+    if (currentGasUrl) {
+        loadAllAppData();
+    } else {
+        // Otomatis buka modal konfigurasi jika URL belum diisi
+        setTimeout(() => {
+            openConfigModal();
+            showToast("Silakan masukkan URL Web App Google Apps Script Anda.", "info");
+        }, 500);
+    }
 });
 
-// ==================== 1. HIDDEN ADMIN TRIGGERS ====================
-function setupHiddenAdminTriggers() {
-  const logoTrigger = document.getElementById('appLogoTrigger');
-  const modal = document.getElementById('modalAdminLogin');
-  const closeModal = document.getElementById('closeModalAdmin');
-  const logoutBtn = document.getElementById('btnLogoutAdmin');
+// ================= SISTEM HAK AKSES ADMIN & NAVIGASI =================
+function initAuthUI() {
+    const adminBadge = document.getElementById('adminStatusBadge');
+    const navEvaluasi = document.getElementById('nav-evaluasi');
+    const mobNavEvaluasi = document.getElementById('mobnav-evaluasi');
+    const adminAddContainer = document.getElementById('adminAddSessionContainer');
 
-  logoTrigger.addEventListener('click', () => {
-    if (state.isAdmin) return;
-    state.logoTapCount++;
-    clearTimeout(state.logoTapTimer);
-    state.logoTapTimer = setTimeout(() => { state.logoTapCount = 0; }, 1500);
-
-    if (state.logoTapCount >= 5) {
-      state.logoTapCount = 0;
-      openLoginModal();
+    if (isAdmin) {
+        adminBadge.classList.remove('hidden');
+        adminBadge.classList.add('flex');
+        navEvaluasi.classList.remove('hidden');
+        mobNavEvaluasi.classList.remove('hidden');
+        if (adminAddContainer) adminAddContainer.classList.remove('hidden');
+    } else {
+        adminBadge.classList.add('hidden');
+        adminBadge.classList.remove('flex');
+        navEvaluasi.classList.add('hidden');
+        mobNavEvaluasi.classList.add('hidden');
+        if (adminAddContainer) adminAddContainer.classList.add('hidden');
     }
-  });
+}
 
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.altKey && (e.key === 'm' || e.key === 'M')) {
-      e.preventDefault();
-      if (!state.isAdmin) openLoginModal();
+function setupSecretTriggers() {
+    const logoContainer = document.getElementById('logoContainer');
+    if (logoContainer) {
+        logoContainer.addEventListener('click', () => {
+            logoClickCount++;
+            if (logoClickTimer) clearTimeout(logoClickTimer);
+            logoClickTimer = setTimeout(() => { logoClickCount = 0; }, 2000);
+
+            if (logoClickCount >= 5) {
+                logoClickCount = 0;
+                if (!isAdmin) openAdminLoginModal();
+                else showToast("Anda sudah masuk sebagai Admin.", "info");
+            }
+        });
     }
-  });
 
-  closeModal.addEventListener('click', () => {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  });
-
-  logoutBtn.addEventListener('click', () => {
-    sessionStorage.removeItem('os_studio_admin');
-    sessionStorage.removeItem('os_studio_user');
-    state.isAdmin = false;
-    state.adminUser = '';
-    applyAdminUIState();
-    switchTab('beranda');
-    showToast('Mode Admin dinonaktifkan.', 'info');
-  });
-}
-
-function openLoginModal() {
-  const modal = document.getElementById('modalAdminLogin');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  document.getElementById('adminUsername').focus();
-}
-
-function applyAdminUIState() {
-  const badge = document.getElementById('adminBadge');
-  const logoutBtn = document.getElementById('btnLogoutAdmin');
-  const tabEvaluasi = document.getElementById('navTabEvaluasi');
-  const formKegiatanCard = document.getElementById('adminKegiatanCard');
-  const inputHariTanggal = document.getElementById('inputHariTanggal');
-
-  if (state.isAdmin) {
-    badge.classList.remove('hidden');
-    badge.classList.add('inline-flex');
-    logoutBtn.classList.remove('hidden');
-    tabEvaluasi.classList.remove('hidden');
-    tabEvaluasi.classList.add('flex');
-    formKegiatanCard.classList.remove('hidden');
-    inputHariTanggal.removeAttribute('readonly');
-  } else {
-    badge.classList.add('hidden');
-    badge.classList.remove('inline-flex');
-    logoutBtn.classList.add('hidden');
-    tabEvaluasi.classList.add('hidden');
-    tabEvaluasi.classList.remove('flex');
-    formKegiatanCard.classList.add('hidden');
-    inputHariTanggal.setAttribute('readonly', 'true');
-  }
-  renderKegiatanList();
-  renderPenyapaanGrid();
-}
-
-// ==================== 2. NAVIGASI ====================
-function setupNavigation() {
-  document.querySelectorAll('.nav-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.getAttribute('data-tab');
-      switchTab(target);
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.altKey && (e.key === 'm' || e.key === 'M')) {
+            e.preventDefault();
+            if (!isAdmin) openAdminLoginModal();
+            else showToast("Anda sudah masuk sebagai Admin.", "info");
+        }
     });
-  });
-
-  document.getElementById('btnRefreshData').addEventListener('click', fetchInitialData);
 }
 
-function switchTab(tabName) {
-  state.activeTab = tabName;
-  document.querySelectorAll('.nav-tab').forEach(btn => {
-    const isMatch = btn.getAttribute('data-tab') === tabName;
-    btn.classList.toggle('tab-active', isMatch);
-    btn.classList.toggle('text-slate-500', !isMatch);
-    btn.classList.toggle('border-transparent', !isMatch);
-  });
+function openAdminLoginModal() { document.getElementById('adminLoginModal').classList.remove('hidden'); }
+function closeAdminLoginModal() { document.getElementById('adminLoginModal').classList.add('hidden'); document.getElementById('adminPasswordInput').value = ''; }
 
-  document.querySelectorAll('.tab-view').forEach(view => {
-    view.classList.toggle('hidden', view.id !== `view-${tabName}`);
-  });
-
-  if (tabName === 'penyapaan') renderPenyapaanSetup();
-  if (tabName === 'rekap') renderRekapHarian();
-  if (tabName === 'evaluasi' && state.isAdmin) renderEvaluasi();
-}
-
-// ==================== 3. AUTO DATE ====================
-function setAutoIndonesianDate() {
-  const now = new Date();
-  const hariList = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  const bulanList = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  const formatted = `${hariList[now.getDay()]}, ${now.getDate()} ${bulanList[now.getMonth()]} ${now.getFullYear()}`;
-  const inputEl = document.getElementById('inputHariTanggal');
-  if (inputEl) inputEl.value = formatted;
-}
-
-// ==================== 4. API FETCH ====================
-function setLoading(isLoading) {
-  document.getElementById('globalLoader').classList.toggle('hidden', !isLoading);
-}
-
-async function fetchInitialData() {
-  setLoading(true);
-  try {
-    const res = await fetch(GAS_WEB_APP_URL);
-    const json = await res.json();
-    if (json.status === 'success') {
-      state.master = json.data.master || [];
-      state.kegiatan = json.data.kegiatan || [];
-      state.presensi = json.data.presensi || [];
-
-      populateDropdowns();
-      renderKegiatanList();
-      renderPenyapaanSetup();
-      renderRekapHarian();
-      if (state.isAdmin) renderEvaluasi();
-    } else {
-      showToast('Gagal memuat data: ' + json.message, 'error');
+async function verifyAdminPassword() {
+    const pass = document.getElementById('adminPasswordInput').value;
+    if (!pass) { showToast("Masukkan kata sandi admin!", "error"); return; }
+    
+    try {
+        showLoader("Memverifikasi sandi admin...");
+        await callBackend('verifyAdmin', { password: pass });
+        hideLoader();
+        isAdmin = true;
+        sessionStorage.setItem('OS_IS_ADMIN', 'true');
+        initAuthUI();
+        closeAdminLoginModal();
+        showToast("Berhasil masuk sebagai Admin!", "success");
+        renderPenyapaanGrid();
+    } catch (err) {
+        hideLoader();
+        showToast("Kata sandi admin salah!", "error");
     }
-  } catch (err) {
-    showToast('Koneksi gagal. Periksa URL Web App GAS Anda.', 'error');
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
 }
 
-async function postToGas(payload) {
-  setLoading(true);
-  try {
-    const res = await fetch(GAS_WEB_APP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
+function logoutAdmin() {
+    isAdmin = false;
+    sessionStorage.removeItem('OS_IS_ADMIN');
+    initAuthUI();
+    const evalSection = document.getElementById('tab-evaluasi');
+    if (evalSection && !evalSection.classList.contains('hidden')) {
+        switchTab('beranda');
+    }
+    showToast("Keluar dari sesi Admin.", "info");
+    renderPenyapaanGrid();
+}
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('text-indigo-600', 'bg-white', 'shadow-sm');
+        el.classList.add('text-slate-600');
     });
-    return await res.json();
-  } finally {
-    setLoading(false);
-  }
-}
-
-// ==================== 5. FORMS & HANDLERS ====================
-function setupForms() {
-  document.getElementById('formAdminLogin').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = document.getElementById('adminUsername').value;
-    const pin = document.getElementById('adminPin').value;
-    const btn = document.getElementById('btnSubmitLogin');
-    btn.disabled = true;
-    btn.textContent = 'Memverifikasi...';
-
-    const result = await postToGas({ action: 'login', username, pin });
-    btn.disabled = false;
-    btn.textContent = 'Verifikasi & Masuk';
-
-    if (result.status === 'success') {
-      state.isAdmin = true;
-      state.adminUser = result.username;
-      sessionStorage.setItem('os_studio_admin', 'true');
-      sessionStorage.setItem('os_studio_user', result.username);
-
-      document.getElementById('modalAdminLogin').classList.add('hidden');
-      document.getElementById('modalAdminLogin').classList.remove('flex');
-      document.getElementById('formAdminLogin').reset();
-
-      applyAdminUIState();
-      showToast(`Selamat datang, ${result.username}! Mode Admin aktif.`, 'success');
-    } else {
-      showToast(result.message || 'Login gagal!', 'error');
-    }
-  });
-
-  document.getElementById('formAddKegiatan').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = {
-      action: 'addKegiatan',
-      namaKegiatan: document.getElementById('inputNamaKegiatan').value.trim(),
-      hariTanggal: document.getElementById('inputHariTanggal').value.trim(),
-      materi: document.getElementById('inputMateri').value.trim(),
-      penyampai: document.getElementById('inputPenyampai').value.trim()
-    };
-
-    const res = await postToGas(payload);
-    if (res.status === 'success') {
-      showToast('Agenda kegiatan berhasil dibuat!', 'success');
-      document.getElementById('formAddKegiatan').reset();
-      setAutoIndonesianDate();
-      await fetchInitialData();
-    } else {
-      showToast('Gagal menyimpan kegiatan: ' + res.message, 'error');
-    }
-  });
-
-  document.getElementById('selectPenyapaanKegiatan').addEventListener('change', renderPenyapaanGrid);
-
-  // Tombol Kirim Hasil Penyapaan di Bagian Bawah
-  document.getElementById('btnKirimHasilPenyapaan').addEventListener('click', async () => {
-    const idKegiatan = document.getElementById('selectPenyapaanKegiatan').value;
-    if (!idKegiatan) return;
-
-    const cards = document.querySelectorAll('.kelompok-item-card');
-    const entries = Array.from(cards).map(card => {
-      const desa = card.getAttribute('data-desa');
-      const kelompok = card.getAttribute('data-kelompok');
-      const isSapa = card.getAttribute('data-status') === 'sapa';
-      return {
-        desa,
-        kelompok,
-        hadir: isSapa ? 1 : 0,
-        izin: 0,
-        alfa: 0
-      };
+    document.querySelectorAll('.mob-tab-btn').forEach(el => {
+        el.classList.remove('bg-indigo-600', 'text-white');
+        el.classList.add('bg-slate-200', 'text-slate-700');
     });
 
-    const res = await postToGas({
-      action: 'savePresensi',
-      idKegiatan,
-      entries
-    });
+    const targetTab = document.getElementById(`tab-${tabId}`);
+    if (targetTab) targetTab.classList.remove('hidden');
 
-    if (res.status === 'success') {
-      showToast('Hasil penyapaan berhasil dikirim ke Google Sheets!', 'success');
-      await fetchInitialData();
-    } else {
-      showToast('Gagal mengirim penyapaan: ' + res.message, 'error');
+    const deskBtn = document.getElementById(`nav-${tabId}`);
+    if (deskBtn) {
+        deskBtn.classList.remove('text-slate-600');
+        deskBtn.classList.add('text-indigo-600', 'bg-white', 'shadow-sm');
     }
-  });
+    const mobBtn = document.getElementById(`mobnav-${tabId}`);
+    if (mobBtn) {
+        mobBtn.classList.remove('bg-slate-200', 'text-slate-700');
+        mobBtn.classList.add('bg-indigo-600', 'text-white');
+    }
 
-  document.getElementById('selectRekapKegiatan').addEventListener('change', renderRekapHarian);
-  document.getElementById('selectEvaluasiDesa').addEventListener('change', renderEvaluasi);
+    if (tabId === 'penyapaan') renderPenyapaanGrid();
+    if (tabId === 'rekap') loadRekapData();
+    if (tabId === 'evaluasi' && isAdmin) loadEvaluasiData();
 }
 
-// ==================== 6. BERANDA ====================
-function renderKegiatanList() {
-  const container = document.getElementById('listKegiatanContainer');
-  const countBadge = document.getElementById('countKegiatan');
-  countBadge.textContent = `${state.kegiatan.length} Kegiatan`;
+// ================= PENGATURAN URL GAS & AJAX FETCH =================
+function openConfigModal() {
+    const inputField = document.getElementById('gasUrlInput');
+    if (inputField) inputField.value = currentGasUrl;
+    const modal = document.getElementById('configModal');
+    if (modal) modal.classList.remove('hidden');
+}
 
-  if (state.kegiatan.length === 0) {
-    container.innerHTML = `
-      <div class="col-span-full bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
-        Belum ada jadwal kegiatan yang tercatat. ${state.isAdmin ? 'Gunakan form di atas untuk menambahkan.' : ''}
-      </div>`;
-    return;
-  }
+function closeConfigModal() { 
+    const modal = document.getElementById('configModal');
+    if (modal) modal.classList.add('hidden'); 
+}
 
-  container.innerHTML = state.kegiatan.map((keg, idx) => `
-    <div onclick="goToPenyapaanWithKegiatan('${keg.ID_Kegiatan}')" class="bg-white rounded-2xl border ${idx === 0 ? 'border-teal-300 ring-1 ring-teal-100' : 'border-slate-200'} p-5 shadow-xs flex flex-col justify-between gap-3 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
-      <div class="space-y-2">
-        <div class="flex items-start justify-between gap-2">
-          <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg">
-            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${escapeHtml(keg.Hari_Tanggal)}
-          </span>
-          ${idx === 0 ? '<span class="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">Terbaru</span>' : ''}
+function saveGasUrl() {
+    const inputField = document.getElementById('gasUrlInput');
+    if (!inputField) return;
+    
+    let url = inputField.value.trim();
+    if (!url) { 
+        showToast("URL Web App tidak boleh kosong!", "error"); 
+        return; 
+    }
+    
+    // Validasi format dasar URL Apps Script
+    if (!url.includes('script.google.com')) {
+        showToast("Format URL Google Apps Script tampak kurang valid. Pastikan menyalin link Web App yang benar.", "error");
+    }
+
+    currentGasUrl = url;
+    localStorage.setItem('OS_GAS_URL', url);
+    closeConfigModal();
+    showToast("URL Web App berhasil disimpan!", "success");
+    loadAllAppData();
+}
+
+function showLoader(text = "Memproses...") {
+    const loaderText = document.getElementById('loaderText');
+    const globalLoader = document.getElementById('globalLoader');
+    if (loaderText) loaderText.innerText = text;
+    if (globalLoader) globalLoader.classList.remove('hidden');
+}
+
+function hideLoader() { 
+    const globalLoader = document.getElementById('globalLoader');
+    if (globalLoader) globalLoader.classList.add('hidden'); 
+}
+
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold text-white flex items-center space-x-2 transition-all transform translate-y-2 opacity-0 ${type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-red-600' : 'bg-slate-800'}`;
+    toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i><span>${msg}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+    setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+async function callBackend(action, payload = {}) {
+    if (!currentGasUrl) {
+        openConfigModal();
+        throw new Error("URL Web App Google Apps Script belum diatur.");
+    }
+    
+    try {
+        const response = await fetch(currentGasUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action, ...payload })
+        });
+        
+        const textRes = await response.text();
+        let result;
+        try {
+            result = JSON.parse(textRes);
+        } catch (e) {
+            throw new Error("Respon server bukan format JSON yang valid. Periksa deployment Web App GAS Anda.");
+        }
+
+        if (!result.success) throw new Error(result.error || "Gagal memproses di server.");
+        return result.data;
+    } catch (err) {
+        console.error("Backend Error:", err);
+        throw err;
+    }
+}
+
+async function triggerSetupDatabase() {
+    try {
+        showLoader("Menyiapkan database Google Sheets...");
+        await callBackend('setupDatabase');
+        hideLoader();
+        showToast("Database Google Sheets berhasil disetup otomatis!", "success");
+        loadAllAppData();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal setup database: " + err.message, "error");
+    }
+}
+
+async function loadAllAppData() {
+    try {
+        showLoader("Memuat data aplikasi...");
+        const data = await callBackend('getAllData');
+        appSessions = data.sessions || [];
+        appPenyapaanSummary = data.penyapaanSummary || {};
+        renderSessionCards();
+        renderPenyapaanGrid();
+        hideLoader();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal memuat data dari Sheets: " + err.message, "error");
+    }
+}
+
+// ================= 1. MODUL BERANDA =================
+function renderSessionCards() {
+    const container = document.getElementById('sessionCardsContainer');
+    if (!container) return;
+
+    if (!appSessions || appSessions.length === 0) {
+        container.innerHTML = `
+            <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 col-span-full space-y-3">
+                <i class="fa-solid fa-calendar-xmark text-slate-300 text-4xl"></i>
+                <p class="text-slate-500 font-medium text-sm">Belum ada jadwal kegiatan tersedia.</p>
+                ${isAdmin ? '<p class="text-xs text-indigo-600">Gunakan tombol "Buat Kegiatan Baru" di atas.</p>' : ''}
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = appSessions.map(sess => `
+        <div onclick="openSessionDetail('${sess.id}')" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between space-y-4 group">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full"><i class="fa-regular fa-calendar mr-1.5"></i>${sess.tanggal}</span>
+                    <span class="text-xs text-slate-400 group-hover:text-indigo-600 transition-colors"><i class="fa-solid fa-arrow-right"></i></span>
+                </div>
+                <h3 class="font-bold text-slate-900 text-base mt-3 group-hover:text-indigo-600 transition-colors">${sess.nama}</h3>
+                <p class="text-xs text-slate-500 mt-1 line-clamp-2"><strong class="text-slate-700">Materi:</strong> ${sess.materi || '-'}</p>
+            </div>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span><i class="fa-solid fa-chalkboard-user mr-1 text-indigo-500"></i> ${sess.penyampai || '-'}</span>
+                <span class="font-semibold text-indigo-600 bg-indigo-50/50 px-2 py-1 rounded-lg">Isi Presensi</span>
+            </div>
         </div>
-        <h3 class="font-bold text-slate-900 text-base leading-snug">${escapeHtml(keg.Nama_Kegiatan)}</h3>
-        <div class="text-xs text-slate-600 space-y-1 pt-1">
-          <p><span class="font-semibold text-slate-700">Materi:</span> ${escapeHtml(keg.Materi)}</p>
-          <p><span class="font-semibold text-slate-700">Penyampai:</span> ${escapeHtml(keg.Penyampai)}</p>
-        </div>
-      </div>
-      <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-        <span class="text-xs font-bold text-teal-700 flex items-center gap-1">
-          Klik untuk Isi Penyapaan <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-        </span>
-        ${state.isAdmin ? `
-          <button onclick="event.stopPropagation(); deleteKegiatan('${keg.ID_Kegiatan}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium">
-            Hapus
-          </button>` : ''}
-      </div>
-    </div>
-  `).join('');
-  lucide.createIcons();
+    `).join('');
 }
 
-window.goToPenyapaanWithKegiatan = function(idKegiatan) {
-  switchTab('penyapaan');
-  const select = document.getElementById('selectPenyapaanKegiatan');
-  select.value = idKegiatan;
-  renderPenyapaanGrid();
-};
+function openAddSessionModal() {
+    document.getElementById('newSessionNama').value = '';
+    document.getElementById('newSessionTanggal').value = new Date().toISOString().split('T')[0];
+    document.getElementById('newSessionPenyampai').value = '';
+    document.getElementById('newSessionMateri').value = '';
+    document.getElementById('addSessionModal').classList.remove('hidden');
+}
+function closeAddSessionModal() { document.getElementById('addSessionModal').classList.add('hidden'); }
 
-window.deleteKegiatan = async function(idKegiatan) {
-  if (!confirm('Hapus agenda kegiatan ini?')) return;
-  const res = await postToGas({ action: 'deleteKegiatan', idKegiatan });
-  if (res.status === 'success') {
-    showToast('Kegiatan dihapus.', 'info');
-    fetchInitialData();
-  }
-};
+async function submitNewSession() {
+    const nama = document.getElementById('newSessionNama').value.trim();
+    const tanggal = document.getElementById('newSessionTanggal').value;
+    const penyampai = document.getElementById('newSessionPenyampai').value.trim();
+    const materi = document.getElementById('newSessionMateri').value.trim();
 
-// ==================== 7. PENYAPAAN GRID SEMUA DESA & TOMBOL SAPA ====================
-function populateDropdowns() {
-  const uniqueDesa = [...new Set(state.master.map(m => m.Desa))];
-  const optionsHtml = uniqueDesa.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+    if (!nama || !tanggal) {
+        showToast("Nama kegiatan dan tanggal wajib diisi!", "error");
+        return;
+    }
 
-  document.getElementById('selectRekapKegiatan').innerHTML = `<option value="ALL">Semua Sesi Kegiatan</option>` +
-    state.kegiatan.map(k => `<option value="${k.ID_Kegiatan}">${escapeHtml(k.Nama_Kegiatan)} — ${escapeHtml(k.Hari_Tanggal)}</option>`).join('');
-  document.getElementById('selectEvaluasiDesa').innerHTML = `<option value="ALL">Semua Desa (${uniqueDesa.length} Wilayah)</option>` + optionsHtml;
+    try {
+        showLoader("Menyimpan kegiatan baru...");
+        await callBackend('createSession', { nama, tanggal, penyampai, materi });
+        hideLoader();
+        closeAddSessionModal();
+        showToast("Kegiatan baru berhasil dibuat!", "success");
+        loadAllAppData();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal membuat kegiatan: " + err.message, "error");
+    }
 }
 
-function renderPenyapaanSetup() {
-  const noAlert = document.getElementById('noKegiatanAlert');
-  const panel = document.getElementById('penyapaanControlPanel');
-  const submitWrapper = document.getElementById('submitPenyapaanWrapper');
+async function openSessionDetail(sessionId) {
+    const sess = appSessions.find(s => s.id == sessionId);
+    if (!sess) return;
+    activeSessionIdForPresensi = sessionId;
 
-  if (state.kegiatan.length === 0) {
-    noAlert.classList.remove('hidden');
-    panel.classList.add('hidden');
-    submitWrapper.classList.add('hidden');
-    document.getElementById('penyapaanDesaGridContainer').innerHTML = '';
-    return;
-  }
+    document.getElementById('modalSessionDate').innerText = sess.tanggal;
+    document.getElementById('modalSessionTitle').innerText = sess.nama;
+    document.getElementById('modalSessionMateriPenyampai').innerText = `Materi: ${sess.materi || '-'} | Penyampai: ${sess.penyampai || '-'}`;
 
-  noAlert.classList.add('hidden');
-  panel.classList.remove('hidden');
-  if (state.isAdmin) submitWrapper.classList.remove('hidden');
+    try {
+        showLoader("Memuat data presensi...");
+        const existingPresensi = await callBackend('getSessionPresensi', { sessionId });
+        hideLoader();
 
-  const selectKeg = document.getElementById('selectPenyapaanKegiatan');
-  const currentVal = selectKeg.value;
-  selectKeg.innerHTML = `<option value="">-- Pilih Sesi Kegiatan --</option>` +
-    state.kegiatan.map(k => `<option value="${k.ID_Kegiatan}">${escapeHtml(k.Nama_Kegiatan)} (${escapeHtml(k.Hari_Tanggal)})</option>`).join('');
+        currentPresensiData = {};
+        Object.keys(MASTER_WILAYAH).forEach(desa => {
+            MASTER_WILAYAH[desa].forEach(kel => {
+                const key = `${desa}|${kel}`;
+                currentPresensiData[key] = existingPresensi[key] || 'Hadir';
+            });
+        });
 
-  if (currentVal && state.kegiatan.some(k => k.ID_Kegiatan === currentVal)) {
-    selectKeg.value = currentVal;
-  } else if (state.kegiatan.length > 0) {
-    selectKeg.value = state.kegiatan[0].ID_Kegiatan;
-  }
-
-  renderPenyapaanGrid();
+        renderPresensiFormList();
+        document.getElementById('sessionDetailModal').classList.remove('hidden');
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal memuat presensi: " + err.message, "error");
+    }
 }
 
+function closeSessionDetailModal() {
+    document.getElementById('sessionDetailModal').classList.add('hidden');
+    activeSessionIdForPresensi = null;
+}
+
+function renderPresensiFormList() {
+    const container = document.getElementById('presensiKelompokListContainer');
+    if (!container) return;
+    let totalCount = 0;
+
+    container.innerHTML = Object.keys(MASTER_WILAYAH).map(desa => {
+        const kelList = MASTER_WILAYAH[desa];
+        totalCount += kelList.length;
+
+        return `
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider text-indigo-600 flex items-center">
+                    <i class="fa-solid fa-location-dot mr-1.5"></i> Desa ${desa}
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    ${kelList.map(kel => {
+                        const key = `${desa}|${kel}`;
+                        const status = currentPresensiData[key] || 'Hadir';
+                        return `
+                            <div class="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
+                                <span class="text-xs font-semibold text-slate-700">${kel}</span>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="setPresensiStatus('${key}', 'Hadir')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Hadir' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">H</button>
+                                    <button onclick="setPresensiStatus('${key}', 'Izin')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Izin' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">I</button>
+                                    <button onclick="setPresensiStatus('${key}', 'Alfa')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Alfa' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">A</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const countInfo = document.getElementById('presensiCountInfo');
+    if (countInfo) countInfo.innerText = `${totalCount} kelompok terdata`;
+}
+
+function setPresensiStatus(key, status) {
+    currentPresensiData[key] = status;
+    renderPresensiFormList();
+}
+
+async function submitPresensiSession() {
+    if (!activeSessionIdForPresensi) return;
+    try {
+        showLoader("Menyimpan presensi...");
+        await callBackend('savePresensi', {
+            sessionId: activeSessionIdForPresensi,
+            presensiData: currentPresensiData
+        });
+        hideLoader();
+        closeSessionDetailModal();
+        showToast("Presensi berhasil disimpan!", "success");
+        loadAllAppData();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal menyimpan presensi: " + err.message, "error");
+    }
+}
+
+// ================= 2. MODUL PENYAPAAN =================
 function renderPenyapaanGrid() {
-  const idKegiatan = document.getElementById('selectPenyapaanKegiatan'].value;
-  const container = document.getElementById('penyapaanDesaGridContainer');
-  const submitWrapper = document.getElementById('submitPenyapaanWrapper');
+    const container = document.getElementById('penyapaanWilayahContainer');
+    if (!container) return;
+    
+    const filterSelect = document.getElementById('filterDesaSelect');
+    const filterDesa = filterSelect ? filterSelect.value : 'ALL';
 
-  if (!idKegiatan) {
-    container.innerHTML = '';
-    if (submitWrapper) submitWrapper.classList.add('hidden');
-    return;
-  }
+    const recommendationMap = {}; 
+    Object.keys(MASTER_WILAYAH).forEach(desa => {
+        let minCount = Infinity;
+        let minKelList = [];
+        MASTER_WILAYAH[desa].forEach(kel => {
+            const count = appPenyapaanSummary[`${desa}|${kel}`] || 0;
+            if (count < minCount) {
+                minCount = count;
+                minKelList = [kel];
+            } else if (count === minCount) {
+                minKelList.push(kel);
+            }
+        });
+        recommendationMap[desa] = minKelList;
+    });
 
-  if (state.isAdmin) submitWrapper.classList.remove('hidden');
+    const filteredDesas = filterDesa === 'ALL' ? Object.keys(MASTER_WILAYAH) : [filterDesa];
 
-  const uniqueDesa = [...new Set(state.master.map(m => m.Desa))];
+    container.innerHTML = filteredDesas.map(desa => {
+        const kelList = MASTER_WILAYAH[desa];
+        const recList = recommendationMap[desa] || [];
 
-  container.innerHTML = uniqueDesa.map(desa => {
-    const kelompokList = state.master.filter(m => m.Desa === desa);
+        return `
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900 text-base sm:text-lg flex items-center">
+                        <i class="fa-solid fa-map-location-dot text-indigo-600 mr-2"></i> Desa ${desa}
+                    </h3>
+                    <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">${kelList.length} Kelompok</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    ${kelList.map(kel => {
+                        const key = `${desa}|${kel}`;
+                        const totalDisapa = appPenyapaanSummary[key] || 0;
+                        const isRec = recList.includes(kel);
+                        const isSapased = appGlobalPenyapaanState[key] !== undefined ? appGlobalPenyapaanState[key] : false;
 
-    return `
-      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-        <h3 class="font-bold text-slate-900 text-base border-b border-slate-100 pb-2">
-          Desa ${escapeHtml(desa)} <span class="text-xs font-normal text-slate-500">(${kelompokList.length} Kelompok)</span>
-        </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          ${kelompokList.map(item => {
-            const namaKlp = item.Kelompok;
+                        return `
+                            <div class="p-4 rounded-xl border ${isSapased ? 'bg-indigo-50/60 border-indigo-300' : 'bg-slate-50/50 border-slate-200'} transition-all flex flex-col justify-between space-y-3">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-sm">${kel}</h4>
+                                        <p class="text-xs text-slate-500 mt-0.5">Total Disapa: <strong class="text-indigo-600">${totalDisapa}x</strong></p>
+                                    </div>
+                                    ${isRec ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[10px] font-semibold flex items-center space-x-1 shadow-2xs" title="Penyapaan Paling Sedikit"><i class="fa-solid fa-star text-amber-500 text-[9px]"></i><span>Rekomendasi</span></span>' : ''}
+                                </div>
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                    <span class="text-[11px] font-medium ${isSapased ? 'text-indigo-700 font-semibold' : 'text-slate-400'}">${isSapased ? 'Terpilih Disapa' : 'Belum Disapa'}</span>
+                                    ${isAdmin ? `
+                                        <button onclick="togglePenyapaanState('${key}')" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all ${isSapased ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}">
+                                            ${isSapased ? '<i class="fa-solid fa-check mr-1"></i> Sapa' : 'Sapa'}
+                                        </button>
+                                    ` : `
+                                        <span class="text-[11px] text-slate-400 italic">${isSapased ? 'Disapa' : '-'}</span>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 
-            // Hitung total penyapaan keseluruhan dari semua data presensi
-            const allRecords = state.presensi.filter(p => p.Desa === desa && p.Kelompok === namaKlp);
-            const totalDisapaAll = allRecords.filter(r => (Number(r.Hadir) + Number(r.Izin) + Number(r.Alfa)) > 0).length;
+    updateSavePenyapaanBar();
+}
 
-            // Cek status pada kegiatan terpilih saat ini
-            const currentRecord = state.presensi.find(
-              p => p.ID_Kegiatan === idKegiatan && p.Desa === desa && p.Kelompok === namaKlp
-            );
-            const isSapaCurrent = currentRecord ? (Number(currentRecord.Hadir) > 0 || Number(currentRecord.Izin) > 0 || Number(currentRecord.Alfa) > 0) : false;
+function filterPenyapaanGrid() { renderPenyapaanGrid(); }
+
+function togglePenyapaanState(key) {
+    if (!isAdmin) {
+        showToast("Fitur sapa massal khusus Admin!", "error");
+        return;
+    }
+    if (appGlobalPenyapaanState[key] === undefined) {
+        appGlobalPenyapaanState[key] = true;
+    } else {
+        appGlobalPenyapaanState[key] = !appGlobalPenyapaanState[key];
+    }
+    renderPenyapaanGrid();
+}
+
+function updateSavePenyapaanBar() {
+    const bar = document.getElementById('savePenyapaanBar');
+    if (!bar) return;
+    const hasChanges = Object.values(appGlobalPenyapaanState).some(v => v === true);
+    if (hasChanges && isAdmin) {
+        bar.classList.remove('hidden');
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
+async function submitBulkPenyapaan() {
+    const selectedKeys = Object.keys(appGlobalPenyapaanState).filter(k => appGlobalPenyapaanState[k] === true);
+    if (selectedKeys.length === 0) {
+        showToast("Tidak ada kelompok yang dipilih untuk disapa.", "error");
+        return;
+    }
+
+    try {
+        showLoader("Menyimpan hasil penyapaan massal...");
+        await callBackend('saveBulkPenyapaan', { selectedKeys });
+        hideLoader();
+        appGlobalPenyapaanState = {};
+        showToast("Hasil penyapaan berhasil disimpan ke Google Sheets!", "success");
+        loadAllAppData();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal menyimpan penyapaan: " + err.message, "error");
+    }
+}
+
+// ================= 3. MODUL REKAPITULASI HARIAN =================
+async function loadRekapData() {
+    const container = document.getElementById('rekapCardsContainer');
+    if (!container) return;
+
+    try {
+        showLoader("Memuat rekapitulasi riwayat...");
+        const rekapList = await callBackend('getRekapHarian');
+        hideLoader();
+
+        if (!rekapList || rekapList.length === 0) {
+            container.innerHTML = `
+                <div class="p-8 text-center bg-white rounded-2xl border border-slate-200">
+                    <i class="fa-solid fa-chart-pie text-slate-300 text-4xl mb-3"></i>
+                    <p class="text-slate-500 font-medium text-sm">Belum ada data rekap kegiatan.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = rekapList.map(rekap => {
+            const desaGroup = {};
+            (rekap.kelompokDisapa || []).forEach(item => {
+                let desa = item.desa;
+                let kel = item.kelompok;
+                if (!desa && typeof item === 'string') {
+                    const parts = item.split('|');
+                    desa = parts[0];
+                    kel = parts[1];
+                }
+                if (desa && kel) {
+                    if (!desaGroup[desa]) desaGroup[desa] = [];
+                    desaGroup[desa].push(kel);
+                }
+            });
 
             return `
-              <div data-desa="${escapeHtml(desa)}" data-kelompok="${escapeHtml(namaKlp)}" data-status="${isSapaCurrent ? 'sapa' : 'belum'}" 
-                   class="kelompok-item-card rounded-xl border ${isSapaCurrent ? 'border-teal-300 bg-teal-50/40' : 'border-slate-200 bg-slate-50/50'} p-3.5 flex flex-col justify-between gap-3 transition">
-                <div>
-                  <div class="flex items-start justify-between gap-2">
-                    <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(namaKlp)}</h4>
-                    <span class="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Disapa: ${totalDisapaAll}x
-                    </span>
-                  </div>
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                            <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full"><i class="fa-regular fa-calendar mr-1"></i>${rekap.tanggal}</span>
+                            <h3 class="font-bold text-slate-900 text-base mt-2">${rekap.nama}</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Materi: ${rekap.materi || '-'} | Penyampai: ${rekap.penyampai || '-'}</p>
+                        </div>
+                        <div class="bg-indigo-50 px-3.5 py-2 rounded-xl text-center">
+                            <span class="block text-xs font-medium text-indigo-500">Total Kelompok</span>
+                            <span class="text-lg font-bold text-indigo-700">${rekap.totalDisapa || 0}</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Kelompok Berpartisipasi / Disapa per Desa:</h4>
+                        <div class="space-y-2">
+                            ${Object.keys(desaGroup).length === 0 ? '<p class="text-xs text-slate-400 italic">Belum ada detail kelompok tercatat.</p>' : ''}
+                            ${Object.keys(desaGroup).map(desa => `
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                                    <span class="text-xs font-bold text-slate-800"><i class="fa-solid fa-location-dot text-indigo-600 mr-1"></i> ${desa}</span>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        ${desaGroup[desa].map(kel => `
+                                            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-xs font-semibold shadow-2xs">${kel}</span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                 </div>
-                <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                  <span class="status-label text-xs font-bold ${isSapaCurrent ? 'text-teal-700' : 'text-slate-400'}">
-                    ${isSapaCurrent ? '✓ Sudah Disapa' : 'Belum Disapa'}
-                  </span>
-                  ${state.isAdmin ? `
-                    <button type="button" onclick="toggleSapaStatus(this)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs ${isSapaCurrent ? 'bg-teal-700 text-white hover:bg-teal-800' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
-                      ${isSapaCurrent ? 'Sapa' : 'Belum'}
-                    </button>
-                  ` : ''}
-                </div>
-              </div>
             `;
-          }).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-  lucide.createIcons();
-}
+        }).join('');
 
-window.toggleSapaStatus = function(btn) {
-  const card = btn.closest('.kelompok-item-card');
-  const currentStatus = card.getAttribute('data-status');
-  const newStatus = currentStatus === 'sapa' ? 'belum' : 'sapa';
-
-  card.setAttribute('data-status', newStatus);
-  const statusLabel = card.querySelector('.status-label');
-
-  if (newStatus === 'sapa') {
-    card.className = "kelompok-item-card rounded-xl border border-teal-300 bg-teal-50/40 p-3.5 flex flex-col justify-between gap-3 transition";
-    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-teal-700 text-white hover:bg-teal-800";
-    btn.textContent = 'Sapa';
-    statusLabel.className = "status-label text-xs font-bold text-teal-700";
-    statusLabel.textContent = '✓ Sudah Disapa';
-  } else {
-    card.className = "kelompok-item-card rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 flex flex-col justify-between gap-3 transition";
-    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-slate-200 text-slate-700 hover:bg-slate-300";
-    btn.textContent = 'Belum';
-    statusLabel.className = "status-label text-xs font-bold text-slate-400";
-    statusLabel.textContent = 'Belum Disapa';
-  }
-
-  // Indikasi tersimpan lokal
-  const indicator = document.getElementById('saveStatusIndicator');
-  indicator.classList.remove('hidden');
-  setTimeout(() => indicator.classList.add('hidden'), 3000);
-};
-
-// ==================== 8. REKAP HARIAN (MENYERUPAI GAMBAR REFERENSI) ====================
-function renderRekapHarian() {
-  const filterKeg = document.getElementById('selectRekapKegiatan').value;
-  const container = document.getElementById('rekapCardsContainer');
-
-  const targetKegiatanList = filterKeg === 'ALL' ? state.kegiatan : state.kegiatan.filter(k => k.ID_Kegiatan === filterKeg);
-
-  if (targetKegiatanList.length === 0 || state.presensi.length === 0) {
-    container.innerHTML = `
-      <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
-        Belum ada data rekapitulasi penyapaan harian.
-      </div>`;
-    return;
-  }
-
-  container.innerHTML = targetKegiatanList.map(keg => {
-    const recordsForKeg = state.presensi.filter(p => p.ID_Kegiatan === keg.ID_Kegiatan && (Number(p.Hadir) + Number(p.Izin) + Number(p.Alfa)) > 0);
-    
-    // Kelompokkan per desa
-    const desaMap = {};
-    recordsForKeg.forEach(r => {
-      if (!desaMap[r.Desa]) desaMap[r.Desa] = [];
-      desaMap[r.Desa].push(r.Kelompok);
-    });
-
-    if (recordsForKeg.length === 0 && filterKeg !== 'ALL') {
-      return `
-        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-          <div class="flex items-start justify-between">
-            <div>
-              <h3 class="font-bold text-slate-900 text-base">${escapeHtml(keg.Nama_Kegiatan)}</h3>
-              <p class="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
-                <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${escapeHtml(keg.Hari_Tanggal)}
-              </p>
-            </div>
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">0 Kelompok Disapa</span>
-          </div>
-          <p class="text-xs text-slate-400 italic pt-2">Belum ada kelompok yang disapa pada sesi ini.</p>
-        </div>
-      `;
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal memuat rekap: " + err.message, "error");
     }
-
-    if (recordsForKeg.length === 0) return '';
-
-    return `
-      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div class="flex items-start justify-between">
-          <div>
-            <h3 class="font-bold text-slate-900 text-base">${escapeHtml(keg.Nama_Kegiatan)}</h3>
-            <p class="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
-              <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${escapeHtml(keg.Hari_Tanggal)}
-            </p>
-          </div>
-          <span class="px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-            ${recordsForKeg.length} Kelompok Disapa
-          </span>
-        </div>
-
-        <div class="space-y-3 pt-2 border-t border-slate-100">
-          ${Object.entries(desaMap).map(([desa, kelompokList]) => `
-            <div>
-              <h4 class="text-xs font-bold text-slate-700 mb-2">Desa ${escapeHtml(desa)} (${kelompokList.length}):</h4>
-              <div class="flex flex-wrap gap-2">
-                ${kelompokList.map(klp => `
-                  <span class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    ${escapeHtml(klp)}
-                  </span>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }).join('');
-  lucide.createIcons();
 }
 
-// ==================== 9. EVALUASI (ADMIN) ====================
-function renderEvaluasi() {
-  const filterDesa = document.getElementById('selectEvaluasiDesa').value;
-  const masterFiltered = filterDesa === 'ALL'
-    ? state.master
-    : state.master.filter(m => m.Desa === filterDesa);
+// ================= 4. MODUL EVALUASI =================
+async function loadEvaluasiData() {
+    try {
+        showLoader("Memuat data analitik evaluasi...");
+        const data = await callBackend('getEvaluasiData');
+        hideLoader();
 
-  let grandSapa = 0, grandHadir = 0, grandIzin = 0, grandAlfa = 0;
+        const statSesi = document.getElementById('statTotalSesi');
+        const statHadir = document.getElementById('statTotalHadir');
+        const statDisapa = document.getElementById('statTotalDisapa');
 
-  const rowsData = masterFiltered.map(m => {
-    const records = state.presensi.filter(p => p.Desa === m.Desa && p.Kelompok === m.Kelompok);
-    const kaliDisapa = records.filter(r => (Number(r.Hadir) + Number(r.Izin) + Number(r.Alfa)) > 0).length;
-    const hadir = records.reduce((s, r) => s + (Number(r.Hadir) || 0), 0);
-    const izin = records.reduce((s, r) => s + (Number(r.Izin) || 0), 0);
-    const alfa = records.reduce((s, r) => s + (Number(r.Alfa) || 0), 0);
-    const totalOrang = hadir + izin + alfa;
-    const rasio = totalOrang > 0 ? Math.round((hadir / totalOrang) * 100) : 0;
+        if (statSesi) statSesi.innerText = data.totalSesi || 0;
+        if (statHadir) statHadir.innerText = data.totalHadir || 0;
+        if (statDisapa) statDisapa.innerText = data.totalDisapaAll || 0;
 
-    grandSapa += kaliDisapa;
-    grandHadir += hadir;
-    grandIzin += izin;
-    grandAlfa += alfa;
+        const tbody = document.getElementById('evaluasiTableBody');
+        if (!tbody) return;
 
-    return { desa: m.Desa, kelompok: m.Kelompok, kaliDisapa, hadir, izin, alfa, rasio };
-  });
+        const list = data.evaluasiList || [];
 
-  rowsData.sort((a, b) => a.kaliDisapa - b.kaliDisapa || a.hadir - b.hadir);
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada data evaluasi tercatat.</td></tr>`;
+            return;
+        }
 
-  document.getElementById('evaluasiSummaryCards').innerHTML = `
-    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-      <p class="text-xs font-semibold text-slate-500">Total Sesi Penyapaan</p>
-      <p class="text-2xl font-extrabold text-teal-700 mt-1">${grandSapa}x</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-      <p class="text-xs font-semibold text-slate-500">Akumulasi Hadir</p>
-      <p class="text-2xl font-extrabold text-emerald-600 mt-1">${grandHadir}</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-      <p class="text-xs font-semibold text-slate-500">Akumulasi Izin</p>
-      <p class="text-2xl font-extrabold text-amber-600 mt-1">${grandIzin}</p>
-    </div>
-    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-      <p class="text-xs font-semibold text-slate-500">Akumulasi Alfa</p>
-      <p class="text-2xl font-extrabold text-rose-600 mt-1">${grandAlfa}</p>
-    </div>
-  `;
+        tbody.innerHTML = list.map(item => `
+            <tr class="hover:bg-slate-50 transition-colors">
+                <td class="p-4 font-semibold text-slate-800">${item.desa}</td>
+                <td class="p-4 text-slate-700">${item.kelompok}</td>
+                <td class="p-4 text-center font-bold text-indigo-600">${item.frekuensiDisapa || 0}x</td>
+                <td class="p-4 text-center font-semibold text-emerald-600">${item.hadir || 0}</td>
+                <td class="p-4 text-center font-semibold text-amber-600">${item.izin || 0}</td>
+                <td class="p-4 text-center font-semibold text-red-600">${item.alfa || 0}</td>
+            </tr>
+        `).join('');
 
-  document.getElementById('evaluasiTableBody').innerHTML = rowsData.map(r => `
-    <tr class="hover:bg-slate-50">
-      <td class="py-3 px-4 font-semibold text-slate-700">${escapeHtml(r.desa)}</td>
-      <td class="py-3 px-4 font-bold text-slate-900">${escapeHtml(r.kelompok)}</td>
-      <td class="py-3 px-4 text-center">
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${r.kaliDisapa === 0 ? 'bg-rose-100 text-rose-700' : 'bg-teal-50 text-teal-800'}">
-          ${r.kaliDisapa}x
-        </span>
-      </td>
-      <td class="py-3 px-4 text-center font-bold text-emerald-700">${r.hadir}</td>
-      <td class="py-3 px-4 text-center font-semibold text-amber-700">${r.izin}</td>
-      <td class="py-3 px-4 text-center font-semibold text-rose-700">${r.alfa}</td>
-      <td class="py-3 px-4 text-center">
-        <span class="text-xs font-bold text-slate-700">${r.rasio}%</span>
-      </td>
-    </tr>
-  `).join('');
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal memuat evaluasi: " + err.message, "error");
+    }
 }
 
-// ==================== 10. UTILITIES ====================
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function filterEvaluasiTable() {
+    const searchInput = document.getElementById('searchEvaluasiInput');
+    if (!searchInput) return;
+    const query = searchInput.value.toLowerCase();
+    const rows = document.querySelectorAll('#evaluasiTableBody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+    });
 }
+```
+eof
 
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toastContainer');
-  const colors = {
-    success: 'bg-teal-800 text-white border-teal-700',
-    error: 'bg-rose-700 text-white border-rose-600',
-    info: 'bg-slate-800 text-white border-slate-700'
-  };
-  const toast = document.createElement('div');
-  toast.className = `${colors[type] || colors.info} border px-4 py-3 rounded-xl shadow-lg text-xs font-semibold pointer-events-auto transition-opacity duration-300`;
-  toast.textContent = message;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.classList.add('opacity-0');
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
+### Ringkasan Pembaruan:
+1. **Modal Konfigurasi URL GAS**: Aplikasi sekarang secara otomatis mendeteksi jika URL Web App belum diisi dan meminta Anda menempelkan URL tersebut lewat kotak dialog konfigurasi.
+2. **Penyimpanan Lokal (`localStorage`)**: URL Web App yang Anda masukkan disimpan dengan aman di browser lokal Anda sehingga Anda tidak perlu mengetiknya ulang setiap membuka halaman.
+3. **Validasi & Penanganan Error Korporat**: Ditambahkan validasi respon JSON dan penanganan error jika endpoint GAS belum aktif atau belum di-deploy sebagai Web App.
