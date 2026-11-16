@@ -128,7 +128,7 @@
             </div>
         </section>
 
-        <!-- TAB 4: EVALUASI (KHUSUS ADMIN) -->
+       <!-- TAB 4: EVALUASI (KHUSUS ADMIN) -->
         <section id="tab-evaluasi" class="tab-content hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -151,9 +151,11 @@
                 </div>
             </div>
 
-            <!-- Indikator Kelompok Belum Mengisi Presensi -->
+            <!-- Indikator Kelompok Belum Mengisi Presensi dengan Jumlah Total -->
             <div id="missingPresensiWrapper" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm space-y-2">
-                <h4 class="font-bold text-sm text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Kelompok Belum Mengisi Presensi pada Kegiatan Ini:</h4>
+                <h4 id="missingPresensiTitle" class="font-bold text-sm text-amber-800">
+                    <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Kelompok Belum Mengisi Presensi pada Kegiatan Ini:
+                </h4>
                 <div id="missingPresensiList" class="flex flex-wrap gap-1.5"></div>
             </div>
 
@@ -200,6 +202,7 @@
                                 <th class="p-4 text-center">Hadir (Pa / Pi)</th>
                                 <th class="p-4 text-center">Izin (Pa / Pi)</th>
                                 <th class="p-4 text-center">Alfa (Pa / Pi)</th>
+                                <th class="p-4 text-center">Total</th>
                             </tr>
                         </thead>
                         <tbody id="evaluasiTableBody" class="divide-y divide-slate-100">
@@ -209,7 +212,6 @@
                 </div>
             </div>
         </section>
-
     </main>
 
     <!-- Modal Login Admin Rahasia -->
