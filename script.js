@@ -13,7 +13,7 @@ let appData = {
 let isAdmin = sessionStorage.getItem("os_admin_auth") === "true";
 let activeActivityIdForPresensi = null;
 
-// Master Data Wilayah & Kelompok Statis Fallback (jika backend belum setup / kosong)
+// Master Data Wilayah & Kelompok Statis Fallback
 const fallbackWilayah = [
     { Desa: "Banjarharjo", Kelompok: "Mojotelu Timur" }, { Desa: "Banjarharjo", Kelompok: "Mojotelu Barat" }, { Desa: "Banjarharjo", Kelompok: "Babatok Selatan" }, { Desa: "Banjarharjo", Kelompok: "Babatok Utara" }, { Desa: "Banjarharjo", Kelompok: "Manggal Barat" }, { Desa: "Banjarharjo", Kelompok: "Manggal Utara" }, { Desa: "Banjarharjo", Kelompok: "Manggal Timur" }, { Desa: "Banjarharjo", Kelompok: "Mirukun" }, { Desa: "Banjarharjo", Kelompok: "Karangmanis" }, { Desa: "Banjarharjo", Kelompok: "Sumberan" }, { Desa: "Banjarharjo", Kelompok: "Jatiarum" },
     { Desa: "Kaling", Kelompok: "Sarirejo" }, { Desa: "Kaling", Kelompok: "Alastuwo" }, { Desa: "Kaling", Kelompok: "Ngemplak" }, { Desa: "Kaling", Kelompok: "Kaling" }, { Desa: "Kaling", Kelompok: "Kauman" }, { Desa: "Kaling", Kelompok: "Celengan" }, { Desa: "Kaling", Kelompok: "Gulunan" }, { Desa: "Kaling", Kelompok: "Pandeyan" }, { Desa: "Kaling", Kelompok: "Suruh 1" }, { Desa: "Kaling", Kelompok: "Suruh 2" }, { Desa: "Kaling", Kelompok: "Kalijirak" },
@@ -31,6 +31,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const dateInput = document.getElementById("penyapaanTanggal");
     if (dateInput && !dateInput.value) dateInput.value = todayStr;
 });
+
+// Helper Format Tanggal Indonesia (Hari, Tanggal Bulan Tahun)
+function formatDateIndo(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        return d.toLocaleDateString('id-ID', options);
+    } catch (e) {
+        return dateStr;
+    }
+}
 
 // ==========================================
 // KONEKSI & FETCH DATA KE BACKEND
@@ -185,6 +198,7 @@ function updateAuthUI() {
     const btnLogout = document.getElementById("btnLogout");
     const tabEvaluasi = document.getElementById("tabEvaluasiBtn");
     const adminActionContainer = document.getElementById("adminActionContainer");
+    const penyapaanSubmitContainer = document.getElementById("penyapaanSubmitContainer");
 
     if (isAdmin) {
         roleBadge.innerHTML = '<i class="fa-solid fa-shield-halved mr-1"></i> Mode Admin';
@@ -192,12 +206,14 @@ function updateAuthUI() {
         btnLogout.classList.remove("hidden");
         tabEvaluasi.classList.remove("hidden");
         if (adminActionContainer) adminActionContainer.classList.remove("hidden");
+        if (penyapaanSubmitContainer) penyapaanSubmitContainer.classList.remove("hidden");
     } else {
         roleBadge.innerHTML = '<i class="fa-solid fa-eye mr-1"></i> Mode Publik (Viewer)';
         roleBadge.className = "px-3 py-1 bg-emerald-800 text-emerald-100 text-xs font-semibold rounded-full border border-emerald-600";
         btnLogout.classList.add("hidden");
         tabEvaluasi.classList.add("hidden");
         if (adminActionContainer) adminActionContainer.classList.add("hidden");
+        if (penyapaanSubmitContainer) penyapaanSubmitContainer.classList.add("hidden");
     }
     renderAllTabs();
 }
@@ -206,7 +222,10 @@ function renderAllTabs() {
     renderBeranda();
     renderPenyapaan();
     renderRekap();
-    if (isAdmin) renderEvaluasi();
+    if (isAdmin) {
+        populateEvaluasiActivityFilter();
+        renderEvaluasi();
+    }
 }
 
 // ==========================================
@@ -227,11 +246,12 @@ function renderBeranda() {
     }
 
     container.innerHTML = appData.aktivitas.map(act => {
+        const formattedDate = formatDateIndo(act.Tanggal);
         return `
             <div onclick="openPresensiModal('${act.Id}', '${act.NamaKegiatan}')" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition cursor-pointer flex flex-col justify-between group">
                 <div>
                     <div class="flex justify-between items-start mb-2">
-                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold text-xs rounded-lg">${act.Tanggal || 'Tanggal tidak diset'}</span>
+                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold text-xs rounded-lg">${formattedDate}</span>
                         <i class="fa-solid fa-chevron-right text-slate-300 group-hover:text-emerald-600 transition"></i>
                     </div>
                     <h3 class="font-bold text-slate-800 text-base mb-1 group-hover:text-emerald-700 transition">${act.NamaKegiatan}</h3>
@@ -275,6 +295,7 @@ async function saveNewActivity() {
         appData.aktivitas.push({ Id: res.id || ("ACT_" + Date.now()), NamaKegiatan: namaKegiatan, Tanggal: tanggal, Materi: materi, Penyampai: penyampai });
         closeActivityModal();
         renderBeranda();
+        if (isAdmin) populateEvaluasiActivityFilter();
         alert("Kegiatan berhasil dibuat!");
     } catch (e) {
         alert("Gagal menyimpan kegiatan.");
@@ -318,23 +339,28 @@ function onPresensiKelompokChange() {
     
     if (existing) {
         notice.classList.remove("hidden");
-        document.getElementById("inputHadir").value = existing.Hadir || 0;
-        document.getElementById("inputIzin").value = existing.Izin || 0;
-        document.getElementById("inputAlfa").value = existing.Alfa || 0;
+        document.getElementById("inputHadir").value = existing.Hadir !== undefined && existing.Hadir !== "" ? existing.Hadir : "";
+        document.getElementById("inputIzin").value = existing.Izin !== undefined && existing.Izin !== "" ? existing.Izin : "";
+        document.getElementById("inputAlfa").value = existing.Alfa !== undefined && existing.Alfa !== "" ? existing.Alfa : "";
     } else {
         notice.classList.add("hidden");
-        document.getElementById("inputHadir").value = 0;
-        document.getElementById("inputIzin").value = 0;
-        document.getElementById("inputAlfa").value = 0;
+        document.getElementById("inputHadir").value = "";
+        document.getElementById("inputIzin").value = "";
+        document.getElementById("inputAlfa").value = "";
     }
 }
 
 async function submitPresensiData() {
     const desa = document.getElementById("presensiDesaSelect").value;
     const kelompok = document.getElementById("presensiKelompokSelect").value;
-    const hadir = parseInt(document.getElementById("inputHadir").value) || 0;
-    const izin = parseInt(document.getElementById("inputIzin").value) || 0;
-    const alfa = parseInt(document.getElementById("inputAlfa").value) || 0;
+    
+    const rawHadir = document.getElementById("inputHadir").value;
+    const rawIzin = document.getElementById("inputIzin").value;
+    const rawAlfa = document.getElementById("inputAlfa").value;
+
+    const hadir = rawHadir === "" ? 0 : parseInt(rawHadir) || 0;
+    const izin = rawIzin === "" ? 0 : parseInt(rawIzin) || 0;
+    const alfa = rawAlfa === "" ? 0 : parseInt(rawAlfa) || 0;
 
     if (!activeActivityIdForPresensi) return;
 
@@ -371,7 +397,7 @@ async function submitPresensiData() {
 }
 
 // ==========================================
-// MODUL 2: PENYAPAAN (4 REKOMENDASI PER DESA)
+// MODUL 2: PENYAPAAN (4 REKOMENDASI PER DESA & TOTAL BESAR DI SAMPING)
 // ==========================================
 function renderPenyapaan() {
     const container = document.getElementById("penyapaanGridContainer");
@@ -411,10 +437,16 @@ function renderPenyapaan() {
                         const count = freqMap[`${desa}_${k.Kelompok}`] || 0;
                         return `
                             <div class="p-4 rounded-xl border ${isRec ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/50'} flex flex-col justify-between space-y-3 relative">
-                                ${isRec ? '<span class="absolute top-2 right-2 text-xs bg-amber-400 text-white px-2 py-0.5 rounded-full font-bold shadow-xs">⭐ Rekomendasi</span>' : ''}
-                                <div>
-                                    <h4 class="font-bold text-slate-800 text-sm mb-0.5">${k.Kelompok}</h4>
-                                    <p class="text-xs text-slate-500">Total Disapa: <span class="font-semibold text-slate-700">${count}x</span></p>
+                                ${isRec ? '<span class="absolute top-2 right-2 text-xs bg-amber-400 text-white px-2.5 py-0.5 rounded-full font-bold shadow-xs">⭐ Rekomendasi</span>' : ''}
+                                <div class="flex justify-between items-start">
+                                    <div class="pr-2">
+                                        <h4 class="font-bold text-slate-800 text-sm mb-0.5">${k.Kelompok}</h4>
+                                    </div>
+                                    <!-- Total Disapa di samping kanan grid kelompok agar tampak besar dan jelas -->
+                                    <div class="flex flex-col items-center justify-center bg-white border border-emerald-200 rounded-xl px-2.5 py-1 shadow-xs min-w-[50px]">
+                                        <span class="text-[10px] uppercase font-bold text-emerald-600 leading-none">Disapa</span>
+                                        <span class="text-lg font-extrabold text-emerald-700 leading-tight">${count}x</span>
+                                    </div>
                                 </div>
                                 <div class="flex items-center space-x-2 pt-2 border-t border-slate-200/60">
                                     <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-700">
@@ -436,6 +468,11 @@ function renderPenyapaan() {
 }
 
 async function submitPenyapaanData() {
+    if (!isAdmin) {
+        alert("Akses ditolak! Hanya Admin yang dapat mengirimkan hasil penyapaan.");
+        return;
+    }
+
     const namaKegiatan = document.getElementById("penyapaanKegiatanNama").value.trim();
     const tanggal = document.getElementById("penyapaanTanggal").value;
 
@@ -474,7 +511,10 @@ async function submitPenyapaanData() {
         alert("Data penyapaan berhasil disimpan dan terekap!");
         renderPenyapaan();
         renderRekap();
-        if (isAdmin) renderEvaluasi();
+        if (isAdmin) {
+            populateEvaluasiActivityFilter();
+            renderEvaluasi();
+        }
     } catch (e) {
         alert("Gagal menyimpan data penyapaan.");
     }
@@ -487,15 +527,19 @@ function renderRekap() {
     const container = document.getElementById("rekapContainer");
     if (!container) return;
 
-    // Kelompokkan penyapaan berdasarkan NamaKegiatan & Tanggal
+    // Kelompokkan penyapaan berdasarkan NamaKegiatan & Tanggal dari appData.penyapaan
     const sessionMap = {};
     appData.penyapaan.forEach(p => {
-        const key = `${p.NamaKegiatan || 'Kegiatan Umum'}___${p.Tanggal || 'Tanpa Tanggal'}`;
+        const kegiatanName = p.NamaKegiatan || p.namaKegiatan || 'Kegiatan Penyapaan Umum';
+        const rawDate = p.Tanggal || p.tanggal || '-';
+        const key = `${kegiatanName}___${rawDate}`;
+        
         if (!sessionMap[key]) {
-            sessionMap[key] = { namaKegiatan: p.NamaKegiatan || 'Kegiatan Umum', tanggal: p.Tanggal || '-', disapaList: [] };
+            sessionMap[key] = { namaKegiatan: kegiatanName, tanggal: rawDate, disapaList: [] };
         }
-        if (p.Status === "Sapa") {
-            sessionMap[key].disapaList.push({ desa: p.Desa, kelompok: p.Kelompok });
+        const statusVal = p.Status || p.status;
+        if (statusVal === "Sapa") {
+            sessionMap[key].disapaList.push({ desa: p.Desa || p.desa, kelompok: p.Kelompok || p.kelompok });
         }
     });
 
@@ -511,11 +555,14 @@ function renderRekap() {
     }
 
     container.innerHTML = sessions.map(sess => {
+        const formattedDate = formatDateIndo(sess.tanggal);
         // Kelompokkan per desa untuk pill hijau muda
         const perDesa = {};
         sess.disapaList.forEach(item => {
-            if (!perDesa[item.desa]) perDesa[item.desa] = [];
-            perDesa[item.desa].push(item.kelompok);
+            if (item.desa) {
+                if (!perDesa[item.desa]) perDesa[item.desa] = [];
+                perDesa[item.desa].push(item.kelompok);
+            }
         });
 
         return `
@@ -523,7 +570,7 @@ function renderRekap() {
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 gap-2">
                     <div>
                         <h3 class="font-bold text-lg text-slate-800">${sess.namaKegiatan}</h3>
-                        <p class="text-xs text-slate-500"><i class="fa-solid fa-calendar mr-1"></i> ${sess.tanggal}</p>
+                        <p class="text-xs text-slate-500"><i class="fa-solid fa-calendar mr-1"></i> ${formattedDate}</p>
                     </div>
                     <span class="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
                         Total Disapa: ${sess.disapaList.length} Kelompok
@@ -546,30 +593,71 @@ function renderRekap() {
 }
 
 // ==========================================
-// MODUL 4: EVALUASI (KHUSUS ADMIN)
+// MODUL 4: EVALUASI (KHUSUS ADMIN) DENGAN FILTER KEGIATAN & RINGKASAN TOTAL
 // ==========================================
+function populateEvaluasiActivityFilter() {
+    const filterSelect = document.getElementById("evaluasiActivityFilter");
+    if (!filterSelect) return;
+
+    const currentVal = filterSelect.value;
+    filterSelect.innerHTML = `<option value="ALL">Semua Kegiatan</option>` + 
+        appData.aktivitas.map(act => `<option value="${act.Id}">${act.NamaKegiatan} (${formatDateIndo(act.Tanggal)})</option>`).join("");
+    
+    filterSelect.value = currentVal;
+}
+
 function renderEvaluasi() {
     const tbody = document.getElementById("evaluasiTableBody");
     if (!tbody) return;
 
-    // Hitung total disapa per kelompok
+    const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
+
+    // Hitung total disapa per kelompok dari seluruh penyapaan
     const freqMap = {};
     appData.penyapaan.forEach(p => {
-        if (p.Status === "Sapa") {
-            const key = `${p.Desa}_${p.Kelompok}`;
+        if ((p.Status || p.status) === "Sapa") {
+            const desaName = p.Desa || p.desa;
+            const kelName = p.Kelompok || p.kelompok;
+            const key = `${desaName}_${kelName}`;
             freqMap[key] = (freqMap[key] || 0) + 1;
         }
     });
 
-    // Hitung total Hadir, Izin, Alfa per kelompok
+    // Filter presensi berdasarkan aktivitas yang dipilih
+    let filteredPresensi = appData.presensi;
+    if (filterActivityId !== "ALL") {
+        filteredPresensi = appData.presensi.filter(pr => (pr.ActivityId || pr.activityId) === filterActivityId);
+    }
+
+    // Hitung total Hadir, Izin, Alfa per kelompok berdasarkan presensi terfilter
     const presensiMap = {};
-    appData.presensi.forEach(pr => {
-        const key = `${pr.Desa}_${pr.Kelompok}`;
+    let sumHadir = 0;
+    let sumIzin = 0;
+    let sumAlfa = 0;
+
+    filteredPresensi.forEach(pr => {
+        const desaName = pr.Desa || pr.desa;
+        const kelName = pr.Kelompok || pr.kelompok;
+        const key = `${desaName}_${kelName}`;
         if (!presensiMap[key]) presensiMap[key] = { hadir: 0, izin: 0, alfa: 0 };
-        presensiMap[key].hadir += parseInt(pr.Hadir) || 0;
-        presensiMap[key].izin += parseInt(pr.Izin) || 0;
-        presensiMap[key].alfa += parseInt(pr.Alfa) || 0;
+        
+        const h = parseInt(pr.Hadir ?? pr.hadir) || 0;
+        const i = parseInt(pr.Izin ?? pr.izin) || 0;
+        const a = parseInt(pr.Alfa ?? pr.alfa) || 0;
+
+        presensiMap[key].hadir += h;
+        presensiMap[key].izin += i;
+        presensiMap[key].alfa += a;
+
+        sumHadir += h;
+        sumIzin += i;
+        sumAlfa += a;
     });
+
+    // Update summary cards di bagian atas
+    document.getElementById("summaryTotalHadir").textContent = sumHadir;
+    document.getElementById("summaryTotalIzin").textContent = sumIzin;
+    document.getElementById("summaryTotalAlfa").textContent = sumAlfa;
 
     tbody.innerHTML = appData.wilayah.map(w => {
         const key = `${w.Desa}_${w.Kelompok}`;
