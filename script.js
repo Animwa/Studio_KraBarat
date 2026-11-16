@@ -1,7 +1,7 @@
 // ==========================================
 // KONFIGURASI URL GOOGLE APPS SCRIPT
 // ==========================================
-const currentGasUrl = "https://script.google.com/macros/s/AKfycbz8nI8jg-ZX-iuo2y8w6MT-kA4FSUYJnB4dNXJkJDQs_tQHKQ1pkMDZYDXk5ElLcv8Z/exec";
+const currentGasUrl = "https://script.google.com/macros/s/AKfycbx1LcJupwQmDcX6qLpyfrSGi0R8fjhT8BAlCwyRiZkQy1_LDmfk0ia3yhwf1Y_bZ34/exec";
 
 // Global State
 let appData = {
