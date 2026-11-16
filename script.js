@@ -664,6 +664,7 @@ function populateEvaluasiFilters() {
         desaFilter.value = currentDesa;
     }
 }
+
 function renderEvaluasi() {
     const tbody = document.getElementById("evaluasiTableBody");
     if (!tbody) return;
@@ -671,11 +672,15 @@ function renderEvaluasi() {
     const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
     const filterDesa = document.getElementById("evaluasiDesaFilter")?.value || "ALL";
 
-    // Indikator Kelompok Belum Mengisi Presensi beserta Jumlah Totalnya
+    // Indikator Kelompok Belum Mengisi Presensi beserta Jumlah Totalnya (Responsif di HP & Desktop)
     const missingWrapper = document.getElementById("missingPresensiWrapper");
     const missingList = document.getElementById("missingPresensiList");
     const missingTitle = document.getElementById("missingPresensiTitle");
     
+    if (missingWrapper) {
+        missingWrapper.classList.remove("hidden");
+    }
+
     if (filterActivityId !== "ALL") {
         const filledGroups = new Set(
             appData.presensi
@@ -686,20 +691,31 @@ function renderEvaluasi() {
         const unfulfilled = appData.wilayah.filter(w => !filledGroups.has(`${w.Desa}_${w.Kelompok}`));
         
         if (unfulfilled.length > 0) {
-            missingWrapper.classList.remove("hidden");
             if (missingTitle) {
                 missingTitle.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Kelompok Belum Mengisi Presensi pada Kegiatan Ini (<span class="font-extrabold underline">${unfulfilled.length} Kelompok</span>):`;
             }
-            missingList.innerHTML = unfulfilled.map(u => `
-                <span class="px-2.5 py-1 bg-white border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg shadow-xs">
-                    ${u.Desa} - ${u.Kelompok}
-                </span>
-            `).join("");
+            if (missingList) {
+                missingList.innerHTML = unfulfilled.map(u => `
+                    <span class="px-2.5 py-1 bg-white border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg shadow-xs">
+                        ${u.Desa} - ${u.Kelompok}
+                    </span>
+                `).join("");
+            }
         } else {
-            missingWrapper.classList.add("hidden");
+            if (missingTitle) {
+                missingTitle.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5 text-emerald-600"></i> Status Presensi Kegiatan: <span class="font-extrabold text-emerald-700">Lengkap (0 Belum Absen)</span>`;
+            }
+            if (missingList) {
+                missingList.innerHTML = `<span class="text-xs text-emerald-800 font-medium italic">Tahniah! Semua kelompok telah mengisi presensi pada kegiatan ini. 🎉</span>`;
+            }
         }
     } else {
-        missingWrapper.classList.add("hidden");
+        if (missingTitle) {
+            missingTitle.innerHTML = `<i class="fa-solid fa-circle-info mr-1.5 text-blue-600"></i> Informasi Status Presensi (<span class="font-extrabold underline">Semua Kegiatan</span>):`;
+        }
+        if (missingList) {
+            missingList.innerHTML = `<span class="text-xs text-slate-600 italic">Sila pilih salah satu <b>Kegiatan Khusus</b> pada menu pilihan penapis di atas untuk memaparkan senarai terperinci serta jumlah kelompok yang belum mengisi presensi.</span>`;
+        }
     }
 
     const freqMap = {};
@@ -707,8 +723,10 @@ function renderEvaluasi() {
         if ((p.Status || p.status) === "Sapa") {
             const desaName = p.Desa || p.desa;
             const kelName = p.Kelompok || p.kelompok;
-            const key = `${desaName}_${kelName}`;
-            freqMap[key] = (freqMap[key] || 0) + 1;
+            if (desaName && kelName) {
+                const key = `${desaName}_${kelName}`;
+                freqMap[key] = (freqMap[key] || 0) + 1;
+            }
         }
     });
 
@@ -725,18 +743,20 @@ function renderEvaluasi() {
     filteredPresensi.forEach(pr => {
         const desaName = pr.Desa || pr.desa;
         const kelName = pr.Kelompok || pr.kelompok;
+        if (!desaName || !kelName) return;
+
         const key = `${desaName}_${kelName}`;
         if (!presensiMap[key]) {
             presensiMap[key] = { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
         }
         
-        const hPa = parseInt(pr.HadirPutra ?? pr.hadirPutra) || 0;
-        const iPa = parseInt(pr.IzinPutra ?? pr.izinPutra) || 0;
-        const aPa = parseInt(pr.AlfaPutra ?? pr.alfaPutra) || 0;
+        const hPa = parseInt(pr.HadirPutra ?? pr.hadirPutra ?? 0) || 0;
+        const iPa = parseInt(pr.IzinPutra ?? pr.izinPutra ?? 0) || 0;
+        const aPa = parseInt(pr.AlfaPutra ?? pr.alfaPutra ?? 0) || 0;
         
-        const hPi = parseInt(pr.HadirPutri ?? pr.hadirPutri) || 0;
-        const iPi = parseInt(pr.IzinPutri ?? pr.izinPutri) || 0;
-        const aPi = parseInt(pr.AlfaPutri ?? pr.alfaPutri) || 0;
+        const hPi = parseInt(pr.HadirPutri ?? pr.hadirPutri ?? 0) || 0;
+        const iPi = parseInt(pr.IzinPutri ?? pr.izinPutri ?? 0) || 0;
+        const aPi = parseInt(pr.AlfaPutri ?? pr.alfaPutri ?? 0) || 0;
 
         presensiMap[key].hadirPa += hPa;
         presensiMap[key].izinPa += iPa;
@@ -767,7 +787,7 @@ function renderEvaluasi() {
         const totalDisapa = freqMap[key] || 0;
         const pres = presensiMap[key] || { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
         
-        // Menghitung jumlah total keseluruhan (Hadir + Izin + Alfa untuk Putra & Putri)
+        // Menghitung jumlah total keseluruhan baris (Hadir + Izin + Alfa untuk Putra & Putri)
         const rowTotal = pres.hadirPa + pres.izinPa + pres.alfaPa + pres.hadirPi + pres.izinPi + pres.alfaPi;
 
         return `
