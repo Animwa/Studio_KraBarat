@@ -98,6 +98,7 @@ function applyAdminUIState() {
     inputHariTanggal.setAttribute('readonly', 'true');
   }
   renderKegiatanList();
+  renderPenyapaanGrid();
 }
 
 // ==================== 2. NAVIGASI ====================
@@ -158,7 +159,7 @@ async function fetchInitialData() {
       state.kegiatan = json.data.kegiatan || [];
       state.presensi = json.data.presensi || [];
 
-      populateDesaDropdowns();
+      populateDropdowns();
       renderKegiatanList();
       renderPenyapaanSetup();
       renderRekapHarian();
@@ -240,44 +241,46 @@ function setupForms() {
     }
   });
 
-  document.getElementById('selectPenyapaanKegiatan').addEventListener('change', renderPenyapaanKelompokCards);
-  document.getElementById('selectPenyapaanDesa').addEventListener('change', renderPenyapaanKelompokCards);
+  document.getElementById('selectPenyapaanKegiatan').addEventListener('change', renderPenyapaanGrid);
 
-  document.getElementById('formSavePenyapaan').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Tombol Kirim Hasil Penyapaan di Bagian Bawah
+  document.getElementById('btnKirimHasilPenyapaan').addEventListener('click', async () => {
     const idKegiatan = document.getElementById('selectPenyapaanKegiatan').value;
-    const desa = document.getElementById('selectPenyapaanDesa').value;
-    if (!idKegiatan || !desa) return;
+    if (!idKegiatan) return;
 
-    const cards = document.querySelectorAll('.kelompok-penyapaan-card');
-    const entries = Array.from(cards).map(card => ({
-      kelompok: card.getAttribute('data-kelompok'),
-      hadir: card.querySelector('.inp-hadir').value,
-      izin: card.querySelector('.inp-izin').value,
-      alfa: card.querySelector('.inp-alfa').value
-    }));
+    const cards = document.querySelectorAll('.kelompok-item-card');
+    const entries = Array.from(cards).map(card => {
+      const desa = card.getAttribute('data-desa');
+      const kelompok = card.getAttribute('data-kelompok');
+      const isSapa = card.getAttribute('data-status') === 'sapa';
+      return {
+        desa,
+        kelompok,
+        hadir: isSapa ? 1 : 0,
+        izin: 0,
+        alfa: 0
+      };
+    });
 
     const res = await postToGas({
       action: 'savePresensi',
       idKegiatan,
-      desa,
       entries
     });
 
     if (res.status === 'success') {
-      showToast(`Status penyapaan Desa ${desa} berhasil disimpan!`, 'success');
+      showToast('Hasil penyapaan berhasil dikirim ke Google Sheets!', 'success');
       await fetchInitialData();
     } else {
-      showToast('Gagal menyimpan penyapaan: ' + res.message, 'error');
+      showToast('Gagal mengirim penyapaan: ' + res.message, 'error');
     }
   });
 
   document.getElementById('selectRekapKegiatan').addEventListener('change', renderRekapHarian);
-  document.getElementById('selectRekapDesa').addEventListener('change', renderRekapHarian);
   document.getElementById('selectEvaluasiDesa').addEventListener('change', renderEvaluasi);
 }
 
-// ==================== 6. BERANDA & KLIK KEGIATAN ====================
+// ==================== 6. BERANDA ====================
 function renderKegiatanList() {
   const container = document.getElementById('listKegiatanContainer');
   const countBadge = document.getElementById('countKegiatan');
@@ -324,7 +327,7 @@ window.goToPenyapaanWithKegiatan = function(idKegiatan) {
   switchTab('penyapaan');
   const select = document.getElementById('selectPenyapaanKegiatan');
   select.value = idKegiatan;
-  renderPenyapaanKelompokCards();
+  renderPenyapaanGrid();
 };
 
 window.deleteKegiatan = async function(idKegiatan) {
@@ -336,30 +339,32 @@ window.deleteKegiatan = async function(idKegiatan) {
   }
 };
 
-// ==================== 7. PENYAPAAN & GRID KELOMPOK ====================
-function populateDesaDropdowns() {
+// ==================== 7. PENYAPAAN GRID SEMUA DESA & TOMBOL SAPA ====================
+function populateDropdowns() {
   const uniqueDesa = [...new Set(state.master.map(m => m.Desa))];
   const optionsHtml = uniqueDesa.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  document.getElementById('selectPenyapaanDesa').innerHTML = `<option value="">-- Pilih Desa --</option>` + optionsHtml;
-  document.getElementById('selectRekapDesa').innerHTML = `<option value="ALL">Semua Desa</option>` + optionsHtml;
+  document.getElementById('selectRekapKegiatan').innerHTML = `<option value="ALL">Semua Sesi Kegiatan</option>` +
+    state.kegiatan.map(k => `<option value="${k.ID_Kegiatan}">${escapeHtml(k.Nama_Kegiatan)} — ${escapeHtml(k.Hari_Tanggal)}</option>`).join('');
   document.getElementById('selectEvaluasiDesa').innerHTML = `<option value="ALL">Semua Desa (${uniqueDesa.length} Wilayah)</option>` + optionsHtml;
 }
 
 function renderPenyapaanSetup() {
   const noAlert = document.getElementById('noKegiatanAlert');
   const panel = document.getElementById('penyapaanControlPanel');
-  const form = document.getElementById('formSavePenyapaan');
+  const submitWrapper = document.getElementById('submitPenyapaanWrapper');
 
   if (state.kegiatan.length === 0) {
     noAlert.classList.remove('hidden');
     panel.classList.add('hidden');
-    form.classList.add('hidden');
+    submitWrapper.classList.add('hidden');
+    document.getElementById('penyapaanDesaGridContainer').innerHTML = '';
     return;
   }
 
   noAlert.classList.add('hidden');
   panel.classList.remove('hidden');
+  if (state.isAdmin) submitWrapper.classList.remove('hidden');
 
   const selectKeg = document.getElementById('selectPenyapaanKegiatan');
   const currentVal = selectKeg.value;
@@ -372,168 +377,66 @@ function renderPenyapaanSetup() {
     selectKeg.value = state.kegiatan[0].ID_Kegiatan;
   }
 
-  // Set default desa pertama jika belum dipilih
-  const selectDesa = document.getElementById('selectPenyapaanDesa');
-  if (!selectDesa.value && selectDesa.options.length > 1) {
-    selectDesa.selectedIndex = 1;
-  }
-
-  renderPenyapaanKelompokCards();
+  renderPenyapaanGrid();
 }
 
-function getTop4RecommendedKelompok(desa) {
-  const kelompokDiDesa = state.master.filter(m => m.Desa === desa).map(m => m.Kelompok);
+function renderPenyapaanGrid() {
+  const idKegiatan = document.getElementById('selectPenyapaanKegiatan'].value;
+  const container = document.getElementById('penyapaanDesaGridContainer');
+  const submitWrapper = document.getElementById('submitPenyapaanWrapper');
 
-  const stats = kelompokDiDesa.map(namaKelompok => {
-    const records = state.presensi.filter(p => p.Desa === desa && p.Kelompok === namaKelompok);
-    const sesiDisapa = records.filter(r => (Number(r.Hadir) + Number(r.Izin) + Number(r.Alfa)) > 0).length;
-    const totalHadir = records.reduce((acc, r) => acc + (Number(r.Hadir) || 0), 0);
-
-    return { kelompok: namaKelompok, sesiDisapa, totalHadir };
-  });
-
-  stats.sort((a, b) => {
-    if (a.sesiDisapa !== b.sesiDisapa) return a.sesiDisapa - b.sesiDisapa;
-    return a.totalHadir - b.totalHadir;
-  });
-
-  const top4 = stats.slice(0, 4).map(s => s.kelompok);
-  const statMap = {};
-  stats.forEach(s => { statMap[s.kelompok] = s; });
-
-  return { recommendedSet: new Set(top4), statMap };
-}
-
-function renderPenyapaanKelompokCards() {
-  const idKegiatan = document.getElementById('selectPenyapaanKegiatan').value;
-  const desa = document.getElementById('selectPenyapaanDesa').value;
-  const form = document.getElementById('formSavePenyapaan');
-  const container = document.getElementById('penyapaanCardsContainer');
-
-  if (!idKegiatan || !desa) {
-    form.classList.add('hidden');
+  if (!idKegiatan) {
+    container.innerHTML = '';
+    if (submitWrapper) submitWrapper.classList.add('hidden');
     return;
   }
 
-  form.classList.remove('hidden');
-  const kelompokList = state.master.filter(m => m.Desa === desa);
-  document.getElementById('penyapaanDesaHeading').textContent = `Grid Kelompok — Desa ${desa}`;
-  document.getElementById('penyapaanKelompokCount').textContent = `${kelompokList.length} Kelompok`;
+  if (state.isAdmin) submitWrapper.classList.remove('hidden');
 
-  const { recommendedSet, statMap } = getTop4RecommendedKelompok(desa);
+  const uniqueDesa = [...new Set(state.master.map(m => m.Desa))];
 
-  container.innerHTML = kelompokList.map(item => {
-    const namaKlp = item.Kelompok;
-    const isRecommended = recommendedSet.has(namaKlp);
-    const totalSapa = statMap[namaKlp]?.sesiDisapa || 0;
-
-    const existing = state.presensi.find(
-      p => p.ID_Kegiatan === idKegiatan && p.Desa === desa && p.Kelompok === namaKlp
-    );
-
-    const valHadir = existing ? existing.Hadir : 0;
-    const valIzin = existing ? existing.Izin : 0;
-    const valAlfa = existing ? existing.Alfa : 0;
+  container.innerHTML = uniqueDesa.map(desa => {
+    const kelompokList = state.master.filter(m => m.Desa === desa);
 
     return `
-      <div data-kelompok="${escapeHtml(namaKlp)}" class="kelompok-penyapaan-card bg-white rounded-2xl border ${isRecommended ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} p-4 shadow-xs flex flex-col justify-between gap-3">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(namaKlp)}</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Status: <strong class="text-teal-700">Disapa ${totalSapa}x</strong></p>
-          </div>
-          ${isRecommended ? `
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
-              ⭐ Rekomendasi
-            </span>` : ''}
-        </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+        <h3 class="font-bold text-slate-900 text-base border-b border-slate-100 pb-2">
+          Desa ${escapeHtml(desa)} <span class="text-xs font-normal text-slate-500">(${kelompokList.length} Kelompok)</span>
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          ${kelompokList.map(item => {
+            const namaKlp = item.Kelompok;
 
-        <div class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
-          <div>
-            <label class="block text-[11px] font-bold text-emerald-700 mb-1">Hadir</label>
-            <input type="number" min="0" value="${valHadir}" class="inp-hadir w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-emerald-50/30" />
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold text-amber-700 mb-1">Izin</label>
-            <input type="number" min="0" value="${valIzin}" class="inp-izin w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-amber-500 focus:outline-none bg-amber-50/30" />
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold text-rose-700 mb-1">Alfa</label>
-            <input type="number" min="0" value="${valAlfa}" class="inp-alfa w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-rose-500 focus:outline-none bg-rose-50/30" />
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  lucide.createIcons();
-}
+            // Hitung total penyapaan keseluruhan dari semua data presensi
+            const allRecords = state.presensi.filter(p => p.Desa === desa && p.Kelompok === namaKlp);
+            const totalDisapaAll = allRecords.filter(r => (Number(r.Hadir) + Number(r.Izin) + Number(r.Alfa)) > 0).length;
 
-// ==================== 8. REKAP HARIAN ====================
-function renderRekapHarian() {
-  const selectKeg = document.getElementById('selectRekapKegiatan');
-  const prevKeg = selectKeg.value || 'ALL';
+            // Cek status pada kegiatan terpilih saat ini
+            const currentRecord = state.presensi.find(
+              p => p.ID_Kegiatan === idKegiatan && p.Desa === desa && p.Kelompok === namaKlp
+            );
+            const isSapaCurrent = currentRecord ? (Number(currentRecord.Hadir) > 0 || Number(currentRecord.Izin) > 0 || Number(currentRecord.Alfa) > 0) : false;
 
-  selectKeg.innerHTML = `<option value="ALL">Semua Sesi Kegiatan</option>` +
-    state.kegiatan.map(k => `<option value="${k.ID_Kegiatan}">${escapeHtml(k.Nama_Kegiatan)} — ${escapeHtml(k.Hari_Tanggal)}</option>`).join('');
-  selectKeg.value = prevKeg;
-
-  const filterKeg = selectKeg.value;
-  const filterDesa = document.getElementById('selectRekapDesa').value;
-  const container = document.getElementById('rekapContainer');
-
-  const filtered = state.presensi.filter(p => {
-    const hasData = (Number(p.Hadir) + Number(p.Izin) + Number(p.Alfa)) > 0;
-    const matchKeg = filterKeg === 'ALL' || p.ID_Kegiatan === filterKeg;
-    const matchDesa = filterDesa === 'ALL' || p.Desa === filterDesa;
-    return hasData && matchKeg && matchDesa;
-  });
-
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
-        Belum ada data rekapitulasi penyapaan untuk filter yang dipilih.
-      </div>`;
-    return;
-  }
-
-  const groupedByDesa = {};
-  filtered.forEach(item => {
-    if (!groupedByDesa[item.Desa]) groupedByDesa[item.Desa] = [];
-    groupedByDesa[item.Desa].push(item);
-  });
-
-  container.innerHTML = Object.entries(groupedByDesa).map(([desa, items]) => {
-    const sumHadir = items.reduce((s, i) => s + Number(i.Hadir), 0);
-    const sumIzin = items.reduce((s, i) => s + Number(i.Izin), 0);
-    const sumAlfa = items.reduce((s, i) => s + Number(i.Alfa), 0);
-
-    return `
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="font-bold text-slate-900 text-base">Desa ${escapeHtml(desa)}</h3>
-            <p class="text-xs text-slate-500">${items.length} kelompok disapa</p>
-          </div>
-          <div class="flex items-center gap-2 text-xs font-bold">
-            <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">Hadir: ${sumHadir}</span>
-            <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800">Izin: ${sumIzin}</span>
-            <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800">Alfa: ${sumAlfa}</span>
-          </div>
-        </div>
-        <div class="divide-y divide-slate-100">
-          ${items.map(row => {
-            const kegObj = state.kegiatan.find(k => k.ID_Kegiatan === row.ID_Kegiatan);
-            const namaKeg = kegObj ? `${kegObj.Nama_Kegiatan} (${kegObj.Hari_Tanggal})` : row.ID_Kegiatan;
             return `
-              <div class="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50/70">
+              <div data-desa="${escapeHtml(desa)}" data-kelompok="${escapeHtml(namaKlp)}" data-status="${isSapaCurrent ? 'sapa' : 'belum'}" 
+                   class="kelompok-item-card rounded-xl border ${isSapaCurrent ? 'border-teal-300 bg-teal-50/40' : 'border-slate-200 bg-slate-50/50'} p-3.5 flex flex-col justify-between gap-3 transition">
                 <div>
-                  <p class="font-bold text-slate-800 text-sm">${escapeHtml(row.Kelompok)}</p>
-                  <p class="text-xs text-slate-500">${escapeHtml(namaKeg)}</p>
+                  <div class="flex items-start justify-between gap-2">
+                    <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(namaKlp)}</h4>
+                    <span class="text-[11px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      Disapa: ${totalDisapaAll}x
+                    </span>
+                  </div>
                 </div>
-                <div class="flex items-center gap-3 text-xs font-semibold">
-                  <span class="text-emerald-700">Hadir: <strong>${row.Hadir}</strong></span>
-                  <span class="text-amber-700">Izin: <strong>${row.Izin}</strong></span>
-                  <span class="text-rose-700">Alfa: <strong>${row.Alfa}</strong></span>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                  <span class="status-label text-xs font-bold ${isSapaCurrent ? 'text-teal-700' : 'text-slate-400'}">
+                    ${isSapaCurrent ? '✓ Sudah Disapa' : 'Belum Disapa'}
+                  </span>
+                  ${state.isAdmin ? `
+                    <button type="button" onclick="toggleSapaStatus(this)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs ${isSapaCurrent ? 'bg-teal-700 text-white hover:bg-teal-800' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}">
+                      ${isSapaCurrent ? 'Sapa' : 'Belum'}
+                    </button>
+                  ` : ''}
                 </div>
               </div>
             `;
@@ -542,6 +445,113 @@ function renderRekapHarian() {
       </div>
     `;
   }).join('');
+  lucide.createIcons();
+}
+
+window.toggleSapaStatus = function(btn) {
+  const card = btn.closest('.kelompok-item-card');
+  const currentStatus = card.getAttribute('data-status');
+  const newStatus = currentStatus === 'sapa' ? 'belum' : 'sapa';
+
+  card.setAttribute('data-status', newStatus);
+  const statusLabel = card.querySelector('.status-label');
+
+  if (newStatus === 'sapa') {
+    card.className = "kelompok-item-card rounded-xl border border-teal-300 bg-teal-50/40 p-3.5 flex flex-col justify-between gap-3 transition";
+    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-teal-700 text-white hover:bg-teal-800";
+    btn.textContent = 'Sapa';
+    statusLabel.className = "status-label text-xs font-bold text-teal-700";
+    statusLabel.textContent = '✓ Sudah Disapa';
+  } else {
+    card.className = "kelompok-item-card rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 flex flex-col justify-between gap-3 transition";
+    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs bg-slate-200 text-slate-700 hover:bg-slate-300";
+    btn.textContent = 'Belum';
+    statusLabel.className = "status-label text-xs font-bold text-slate-400";
+    statusLabel.textContent = 'Belum Disapa';
+  }
+
+  // Indikasi tersimpan lokal
+  const indicator = document.getElementById('saveStatusIndicator');
+  indicator.classList.remove('hidden');
+  setTimeout(() => indicator.classList.add('hidden'), 3000);
+};
+
+// ==================== 8. REKAP HARIAN (MENYERUPAI GAMBAR REFERENSI) ====================
+function renderRekapHarian() {
+  const filterKeg = document.getElementById('selectRekapKegiatan').value;
+  const container = document.getElementById('rekapCardsContainer');
+
+  const targetKegiatanList = filterKeg === 'ALL' ? state.kegiatan : state.kegiatan.filter(k => k.ID_Kegiatan === filterKeg);
+
+  if (targetKegiatanList.length === 0 || state.presensi.length === 0) {
+    container.innerHTML = `
+      <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
+        Belum ada data rekapitulasi penyapaan harian.
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = targetKegiatanList.map(keg => {
+    const recordsForKeg = state.presensi.filter(p => p.ID_Kegiatan === keg.ID_Kegiatan && (Number(p.Hadir) + Number(p.Izin) + Number(p.Alfa)) > 0);
+    
+    // Kelompokkan per desa
+    const desaMap = {};
+    recordsForKeg.forEach(r => {
+      if (!desaMap[r.Desa]) desaMap[r.Desa] = [];
+      desaMap[r.Desa].push(r.Kelompok);
+    });
+
+    if (recordsForKeg.length === 0 && filterKeg !== 'ALL') {
+      return `
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">${escapeHtml(keg.Nama_Kegiatan)}</h3>
+              <p class="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${escapeHtml(keg.Hari_Tanggal)}
+              </p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">0 Kelompok Disapa</span>
+          </div>
+          <p class="text-xs text-slate-400 italic pt-2">Belum ada kelompok yang disapa pada sesi ini.</p>
+        </div>
+      `;
+    }
+
+    if (recordsForKeg.length === 0) return '';
+
+    return `
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="font-bold text-slate-900 text-base">${escapeHtml(keg.Nama_Kegiatan)}</h3>
+            <p class="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+              <i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${escapeHtml(keg.Hari_Tanggal)}
+            </p>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+            ${recordsForKeg.length} Kelompok Disapa
+          </span>
+        </div>
+
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          ${Object.entries(desaMap).map(([desa, kelompokList]) => `
+            <div>
+              <h4 class="text-xs font-bold text-slate-700 mb-2">Desa ${escapeHtml(desa)} (${kelompokList.length}):</h4>
+              <div class="flex flex-wrap gap-2">
+                ${kelompokList.map(klp => `
+                  <span class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    ${escapeHtml(klp)}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+  lucide.createIcons();
 }
 
 // ==================== 9. EVALUASI (ADMIN) ====================
