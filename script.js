@@ -1,22 +1,19 @@
 /**
  * FRONTEND LOGIC: OS Studio Karanganyar Barat
- * Ganti GAS_WEB_APP_URL dengan URL Deployment Web App Google Apps Script Anda.
  */
 const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxp6XUW3_wWvauoQLZFMD39zIp_4PO6zrT_jJ1Q8kTETStPYNuv1XFKYhqP_BbfGU0q/exec';
 
-// State Global Aplikasi
 const state = {
   isAdmin: sessionStorage.getItem('os_studio_admin') === 'true',
   adminUser: sessionStorage.getItem('os_studio_user') || '',
   activeTab: 'beranda',
-  master: [],     // [{ID_Kelompok, Desa, Kelompok}]
-  kegiatan: [],   // [{ID_Kegiatan, Nama_Kegiatan, Hari_Tanggal, Materi, Penyampai}]
-  presensi: [],   // [{ID_Presensi, ID_Kegiatan, Desa, Kelompok, Hadir, Izin, Alfa}]
+  master: [],
+  kegiatan: [],
+  presensi: [],
   logoTapCount: 0,
   logoTapTimer: null
 };
 
-// Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
   setupHiddenAdminTriggers();
@@ -27,14 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchInitialData();
 });
 
-// ==================== 1. HIDDEN ADMIN LOGIC ====================
+// ==================== 1. HIDDEN ADMIN TRIGGERS ====================
 function setupHiddenAdminTriggers() {
   const logoTrigger = document.getElementById('appLogoTrigger');
   const modal = document.getElementById('modalAdminLogin');
   const closeModal = document.getElementById('closeModalAdmin');
   const logoutBtn = document.getElementById('btnLogoutAdmin');
 
-  // Cara 1: Ketuk logo 5x berturut-turut dengan cepat (< 1.5 detik antar ketukan)
   logoTrigger.addEventListener('click', () => {
     if (state.isAdmin) return;
     state.logoTapCount++;
@@ -47,7 +43,6 @@ function setupHiddenAdminTriggers() {
     }
   });
 
-  // Cara 2: Shortcut Keyboard Ctrl + Alt + M
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.altKey && (e.key === 'm' || e.key === 'M')) {
       e.preventDefault();
@@ -83,6 +78,7 @@ function applyAdminUIState() {
   const logoutBtn = document.getElementById('btnLogoutAdmin');
   const tabEvaluasi = document.getElementById('navTabEvaluasi');
   const formKegiatanCard = document.getElementById('adminKegiatanCard');
+  const inputHariTanggal = document.getElementById('inputHariTanggal');
 
   if (state.isAdmin) {
     badge.classList.remove('hidden');
@@ -91,6 +87,7 @@ function applyAdminUIState() {
     tabEvaluasi.classList.remove('hidden');
     tabEvaluasi.classList.add('flex');
     formKegiatanCard.classList.remove('hidden');
+    inputHariTanggal.removeAttribute('readonly');
   } else {
     badge.classList.add('hidden');
     badge.classList.remove('inline-flex');
@@ -98,11 +95,12 @@ function applyAdminUIState() {
     tabEvaluasi.classList.add('hidden');
     tabEvaluasi.classList.remove('flex');
     formKegiatanCard.classList.add('hidden');
+    inputHariTanggal.setAttribute('readonly', 'true');
   }
   renderKegiatanList();
 }
 
-// ==================== 2. NAVIGASI 4 TAB ====================
+// ==================== 2. NAVIGASI ====================
 function setupNavigation() {
   document.querySelectorAll('.nav-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -127,12 +125,12 @@ function switchTab(tabName) {
     view.classList.toggle('hidden', view.id !== `view-${tabName}`);
   });
 
-  if (tabName === 'presensi') renderPresensiSetup();
+  if (tabName === 'penyapaan') renderPenyapaanSetup();
   if (tabName === 'rekap') renderRekapHarian();
   if (tabName === 'evaluasi' && state.isAdmin) renderEvaluasi();
 }
 
-// ==================== 3. AUTO DATE INDONESIA ====================
+// ==================== 3. AUTO DATE ====================
 function setAutoIndonesianDate() {
   const now = new Date();
   const hariList = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -145,7 +143,7 @@ function setAutoIndonesianDate() {
   if (inputEl) inputEl.value = formatted;
 }
 
-// ==================== 4. KOMUNIKASI API (FETCH) ====================
+// ==================== 4. API FETCH ====================
 function setLoading(isLoading) {
   document.getElementById('globalLoader').classList.toggle('hidden', !isLoading);
 }
@@ -162,7 +160,7 @@ async function fetchInitialData() {
 
       populateDesaDropdowns();
       renderKegiatanList();
-      renderPresensiSetup();
+      renderPenyapaanSetup();
       renderRekapHarian();
       if (state.isAdmin) renderEvaluasi();
     } else {
@@ -179,7 +177,6 @@ async function fetchInitialData() {
 async function postToGas(payload) {
   setLoading(true);
   try {
-    // Menggunakan text/plain agar terhindar dari preflight CORS OPTIONS di Google Apps Script
     const res = await fetch(GAS_WEB_APP_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -191,9 +188,8 @@ async function postToGas(payload) {
   }
 }
 
-// ==================== 5. FORM HANDLERS ====================
+// ==================== 5. FORMS & HANDLERS ====================
 function setupForms() {
-  // Login Admin
   document.getElementById('formAdminLogin').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('adminUsername').value;
@@ -223,7 +219,6 @@ function setupForms() {
     }
   });
 
-  // Tambah Kegiatan Baru
   document.getElementById('formAddKegiatan').addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = {
@@ -245,18 +240,16 @@ function setupForms() {
     }
   });
 
-  // Filter Presensi Listeners
-  document.getElementById('selectPresensiKegiatan').addEventListener('change', renderPresensiKelompokCards);
-  document.getElementById('selectPresensiDesa').addEventListener('change', renderPresensiKelompokCards);
+  document.getElementById('selectPenyapaanKegiatan').addEventListener('change', renderPenyapaanKelompokCards);
+  document.getElementById('selectPenyapaanDesa').addEventListener('change', renderPenyapaanKelompokCards);
 
-  // Simpan Presensi Batch per Desa
-  document.getElementById('formSavePresensi').addEventListener('submit', async (e) => {
+  document.getElementById('formSavePenyapaan').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const idKegiatan = document.getElementById('selectPresensiKegiatan').value;
-    const desa = document.getElementById('selectPresensiDesa').value;
+    const idKegiatan = document.getElementById('selectPenyapaanKegiatan').value;
+    const desa = document.getElementById('selectPenyapaanDesa').value;
     if (!idKegiatan || !desa) return;
 
-    const cards = document.querySelectorAll('.kelompok-presensi-card');
+    const cards = document.querySelectorAll('.kelompok-penyapaan-card');
     const entries = Array.from(cards).map(card => ({
       kelompok: card.getAttribute('data-kelompok'),
       hadir: card.querySelector('.inp-hadir').value,
@@ -272,20 +265,19 @@ function setupForms() {
     });
 
     if (res.status === 'success') {
-      showToast(`Presensi Desa ${desa} berhasil disimpan!`, 'success');
+      showToast(`Status penyapaan Desa ${desa} berhasil disimpan!`, 'success');
       await fetchInitialData();
     } else {
-      showToast('Gagal menyimpan presensi: ' + res.message, 'error');
+      showToast('Gagal menyimpan penyapaan: ' + res.message, 'error');
     }
   });
 
-  // Rekap & Evaluasi Filters
   document.getElementById('selectRekapKegiatan').addEventListener('change', renderRekapHarian);
   document.getElementById('selectRekapDesa').addEventListener('change', renderRekapHarian);
   document.getElementById('selectEvaluasiDesa').addEventListener('change', renderEvaluasi);
 }
 
-// ==================== 6. RENDER MODUL BERANDA ====================
+// ==================== 6. BERANDA & KLIK KEGIATAN ====================
 function renderKegiatanList() {
   const container = document.getElementById('listKegiatanContainer');
   const countBadge = document.getElementById('countKegiatan');
@@ -294,13 +286,13 @@ function renderKegiatanList() {
   if (state.kegiatan.length === 0) {
     container.innerHTML = `
       <div class="col-span-full bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
-        Belum ada jadwal kegiatan yang tercatat.
+        Belum ada jadwal kegiatan yang tercatat. ${state.isAdmin ? 'Gunakan form di atas untuk menambahkan.' : ''}
       </div>`;
     return;
   }
 
   container.innerHTML = state.kegiatan.map((keg, idx) => `
-    <div class="bg-white rounded-2xl border ${idx === 0 ? 'border-teal-300 ring-1 ring-teal-100' : 'border-slate-200'} p-5 shadow-xs flex flex-col justify-between gap-3">
+    <div onclick="goToPenyapaanWithKegiatan('${keg.ID_Kegiatan}')" class="bg-white rounded-2xl border ${idx === 0 ? 'border-teal-300 ring-1 ring-teal-100' : 'border-slate-200'} p-5 shadow-xs flex flex-col justify-between gap-3 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
       <div class="space-y-2">
         <div class="flex items-start justify-between gap-2">
           <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg">
@@ -315,11 +307,11 @@ function renderKegiatanList() {
         </div>
       </div>
       <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-        <button onclick="goToPresensiWithKegiatan('${keg.ID_Kegiatan}')" class="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1">
-          Isi Presensi Sesi Ini <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-        </button>
+        <span class="text-xs font-bold text-teal-700 flex items-center gap-1">
+          Klik untuk Isi Penyapaan <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+        </span>
         ${state.isAdmin ? `
-          <button onclick="deleteKegiatan('${keg.ID_Kegiatan}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium">
+          <button onclick="event.stopPropagation(); deleteKegiatan('${keg.ID_Kegiatan}')" class="text-xs text-rose-500 hover:text-rose-700 font-medium">
             Hapus
           </button>` : ''}
       </div>
@@ -328,11 +320,11 @@ function renderKegiatanList() {
   lucide.createIcons();
 }
 
-window.goToPresensiWithKegiatan = function(idKegiatan) {
-  switchTab('presensi');
-  const select = document.getElementById('selectPresensiKegiatan');
+window.goToPenyapaanWithKegiatan = function(idKegiatan) {
+  switchTab('penyapaan');
+  const select = document.getElementById('selectPenyapaanKegiatan');
   select.value = idKegiatan;
-  renderPresensiKelompokCards();
+  renderPenyapaanKelompokCards();
 };
 
 window.deleteKegiatan = async function(idKegiatan) {
@@ -344,20 +336,20 @@ window.deleteKegiatan = async function(idKegiatan) {
   }
 };
 
-// ==================== 7. RENDER MODUL PRESENSI & LOGIKA ⭐ REKOMENDASI ====================
+// ==================== 7. PENYAPAAN & GRID KELOMPOK ====================
 function populateDesaDropdowns() {
   const uniqueDesa = [...new Set(state.master.map(m => m.Desa))];
   const optionsHtml = uniqueDesa.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
 
-  document.getElementById('selectPresensiDesa').innerHTML = `<option value="">-- Pilih Desa --</option>` + optionsHtml;
+  document.getElementById('selectPenyapaanDesa').innerHTML = `<option value="">-- Pilih Desa --</option>` + optionsHtml;
   document.getElementById('selectRekapDesa').innerHTML = `<option value="ALL">Semua Desa</option>` + optionsHtml;
   document.getElementById('selectEvaluasiDesa').innerHTML = `<option value="ALL">Semua Desa (${uniqueDesa.length} Wilayah)</option>` + optionsHtml;
 }
 
-function renderPresensiSetup() {
+function renderPenyapaanSetup() {
   const noAlert = document.getElementById('noKegiatanAlert');
-  const panel = document.getElementById('presensiControlPanel');
-  const form = document.getElementById('formSavePresensi');
+  const panel = document.getElementById('penyapaanControlPanel');
+  const form = document.getElementById('formSavePenyapaan');
 
   if (state.kegiatan.length === 0) {
     noAlert.classList.remove('hidden');
@@ -369,43 +361,37 @@ function renderPresensiSetup() {
   noAlert.classList.add('hidden');
   panel.classList.remove('hidden');
 
-  const selectKeg = document.getElementById('selectPresensiKegiatan');
+  const selectKeg = document.getElementById('selectPenyapaanKegiatan');
   const currentVal = selectKeg.value;
   selectKeg.innerHTML = `<option value="">-- Pilih Sesi Kegiatan --</option>` +
     state.kegiatan.map(k => `<option value="${k.ID_Kegiatan}">${escapeHtml(k.Nama_Kegiatan)} (${escapeHtml(k.Hari_Tanggal)})</option>`).join('');
 
-  // Otomatis pilih kegiatan terbaru jika belum ada yang dipilih
   if (currentVal && state.kegiatan.some(k => k.ID_Kegiatan === currentVal)) {
     selectKeg.value = currentVal;
-  } else {
+  } else if (state.kegiatan.length > 0) {
     selectKeg.value = state.kegiatan[0].ID_Kegiatan;
   }
 
-  renderPresensiKelompokCards();
+  // Set default desa pertama jika belum dipilih
+  const selectDesa = document.getElementById('selectPenyapaanDesa');
+  if (!selectDesa.value && selectDesa.options.length > 1) {
+    selectDesa.selectedIndex = 1;
+  }
+
+  renderPenyapaanKelompokCards();
 }
 
-/**
- * Menghitung akumulasi nilai/frekuensi sapaan tiap kelompok di suatu desa,
- * lalu mengembalikan Set berisi nama 4 kelompok dengan sapaan paling sedikit.
- */
 function getTop4RecommendedKelompok(desa) {
   const kelompokDiDesa = state.master.filter(m => m.Desa === desa).map(m => m.Kelompok);
 
-  // Hitung skor penyapaan per kelompok (jumlah sesi disapa + total hadir sebagai tie-breaker)
   const stats = kelompokDiDesa.map(namaKelompok => {
     const records = state.presensi.filter(p => p.Desa === desa && p.Kelompok === namaKelompok);
-    // Sebuah kelompok dianggap disapa pada suatu sesi jika total (Hadir+Izin+Alfa) > 0
     const sesiDisapa = records.filter(r => (Number(r.Hadir) + Number(r.Izin) + Number(r.Alfa)) > 0).length;
     const totalHadir = records.reduce((acc, r) => acc + (Number(r.Hadir) || 0), 0);
 
-    return {
-      kelompok: namaKelompok,
-      sesiDisapa,
-      totalHadir
-    };
+    return { kelompok: namaKelompok, sesiDisapa, totalHadir };
   });
 
-  // Urutkan ascending (paling jarang disapa di urutan teratas)
   stats.sort((a, b) => {
     if (a.sesiDisapa !== b.sesiDisapa) return a.sesiDisapa - b.sesiDisapa;
     return a.totalHadir - b.totalHadir;
@@ -418,11 +404,11 @@ function getTop4RecommendedKelompok(desa) {
   return { recommendedSet: new Set(top4), statMap };
 }
 
-function renderPresensiKelompokCards() {
-  const idKegiatan = document.getElementById('selectPresensiKegiatan').value;
-  const desa = document.getElementById('selectPresensiDesa').value;
-  const form = document.getElementById('formSavePresensi');
-  const container = document.getElementById('presensiCardsContainer');
+function renderPenyapaanKelompokCards() {
+  const idKegiatan = document.getElementById('selectPenyapaanKegiatan').value;
+  const desa = document.getElementById('selectPenyapaanDesa').value;
+  const form = document.getElementById('formSavePenyapaan');
+  const container = document.getElementById('penyapaanCardsContainer');
 
   if (!idKegiatan || !desa) {
     form.classList.add('hidden');
@@ -431,8 +417,8 @@ function renderPresensiKelompokCards() {
 
   form.classList.remove('hidden');
   const kelompokList = state.master.filter(m => m.Desa === desa);
-  document.getElementById('presensiDesaHeading').textContent = `Kelompok di Desa ${desa}`;
-  document.getElementById('presensiKelompokCount').textContent = `${kelompokList.length} Kelompok`;
+  document.getElementById('penyapaanDesaHeading').textContent = `Grid Kelompok — Desa ${desa}`;
+  document.getElementById('penyapaanKelompokCount').textContent = `${kelompokList.length} Kelompok`;
 
   const { recommendedSet, statMap } = getTop4RecommendedKelompok(desa);
 
@@ -441,7 +427,6 @@ function renderPresensiKelompokCards() {
     const isRecommended = recommendedSet.has(namaKlp);
     const totalSapa = statMap[namaKlp]?.sesiDisapa || 0;
 
-    // Cek apakah sudah ada data tersimpan untuk kegiatan & kelompok ini
     const existing = state.presensi.find(
       p => p.ID_Kegiatan === idKegiatan && p.Desa === desa && p.Kelompok === namaKlp
     );
@@ -451,11 +436,11 @@ function renderPresensiKelompokCards() {
     const valAlfa = existing ? existing.Alfa : 0;
 
     return `
-      <div data-kelompok="${escapeHtml(namaKlp)}" class="kelompok-presensi-card bg-white rounded-2xl border ${isRecommended ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} p-4 shadow-xs space-y-3">
+      <div data-kelompok="${escapeHtml(namaKlp)}" class="kelompok-penyapaan-card bg-white rounded-2xl border ${isRecommended ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200'} p-4 shadow-xs flex flex-col justify-between gap-3">
         <div class="flex items-start justify-between gap-2">
           <div>
             <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(namaKlp)}</h4>
-            <p class="text-[11px] text-slate-500">Riwayat disapa: <strong>${totalSapa}x</strong></p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Status: <strong class="text-teal-700">Disapa ${totalSapa}x</strong></p>
           </div>
           ${isRecommended ? `
             <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
@@ -463,26 +448,27 @@ function renderPresensiKelompokCards() {
             </span>` : ''}
         </div>
 
-        <div class="grid grid-cols-3 gap-2.5 pt-1">
+        <div class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
           <div>
             <label class="block text-[11px] font-bold text-emerald-700 mb-1">Hadir</label>
-            <input type="number" min="0" value="${valHadir}" class="inp-hadir w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+            <input type="number" min="0" value="${valHadir}" class="inp-hadir w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-emerald-50/30" />
           </div>
           <div>
             <label class="block text-[11px] font-bold text-amber-700 mb-1">Izin</label>
-            <input type="number" min="0" value="${valIzin}" class="inp-izin w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+            <input type="number" min="0" value="${valIzin}" class="inp-izin w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-amber-500 focus:outline-none bg-amber-50/30" />
           </div>
           <div>
             <label class="block text-[11px] font-bold text-rose-700 mb-1">Alfa</label>
-            <input type="number" min="0" value="${valAlfa}" class="inp-alfa w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-rose-500 focus:outline-none" />
+            <input type="number" min="0" value="${valAlfa}" class="inp-alfa w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-center focus:ring-2 focus:ring-rose-500 focus:outline-none bg-rose-50/30" />
           </div>
         </div>
       </div>
     `;
   }).join('');
+  lucide.createIcons();
 }
 
-// ==================== 8. RENDER MODUL REKAP HARIAN ====================
+// ==================== 8. REKAP HARIAN ====================
 function renderRekapHarian() {
   const selectKeg = document.getElementById('selectRekapKegiatan');
   const prevKeg = selectKeg.value || 'ALL';
@@ -495,7 +481,6 @@ function renderRekapHarian() {
   const filterDesa = document.getElementById('selectRekapDesa').value;
   const container = document.getElementById('rekapContainer');
 
-  // Filter presensi yang memiliki aktivitas (> 0)
   const filtered = state.presensi.filter(p => {
     const hasData = (Number(p.Hadir) + Number(p.Izin) + Number(p.Alfa)) > 0;
     const matchKeg = filterKeg === 'ALL' || p.ID_Kegiatan === filterKeg;
@@ -506,12 +491,11 @@ function renderRekapHarian() {
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500 text-sm">
-        Belum ada data rekapitulasi presensi untuk filter yang dipilih.
+        Belum ada data rekapitulasi penyapaan untuk filter yang dipilih.
       </div>`;
     return;
   }
 
-  // Kelompokkan berdasarkan Desa
   const groupedByDesa = {};
   filtered.forEach(item => {
     if (!groupedByDesa[item.Desa]) groupedByDesa[item.Desa] = [];
@@ -528,7 +512,7 @@ function renderRekapHarian() {
         <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="font-bold text-slate-900 text-base">Desa ${escapeHtml(desa)}</h3>
-            <p class="text-xs text-slate-500">${items.length} catatan kelompok disapa</p>
+            <p class="text-xs text-slate-500">${items.length} kelompok disapa</p>
           </div>
           <div class="flex items-center gap-2 text-xs font-bold">
             <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">Hadir: ${sumHadir}</span>
@@ -560,7 +544,7 @@ function renderRekapHarian() {
   }).join('');
 }
 
-// ==================== 9. RENDER MODUL EVALUASI (ADMIN TAB 4) ====================
+// ==================== 9. EVALUASI (ADMIN) ====================
 function renderEvaluasi() {
   const filterDesa = document.getElementById('selectEvaluasiDesa').value;
   const masterFiltered = filterDesa === 'ALL'
@@ -586,13 +570,11 @@ function renderEvaluasi() {
     return { desa: m.Desa, kelompok: m.Kelompok, kaliDisapa, hadir, izin, alfa, rasio };
   });
 
-  // Urutkan dari yang paling jarang disapa agar admin mudah mengevaluasi pemerataan
   rowsData.sort((a, b) => a.kaliDisapa - b.kaliDisapa || a.hadir - b.hadir);
 
-  // Render KPI Cards
   document.getElementById('evaluasiSummaryCards').innerHTML = `
     <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-      <p class="text-xs font-semibold text-slate-500">Total Sesi Sapaan</p>
+      <p class="text-xs font-semibold text-slate-500">Total Sesi Penyapaan</p>
       <p class="text-2xl font-extrabold text-teal-700 mt-1">${grandSapa}x</p>
     </div>
     <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -609,7 +591,6 @@ function renderEvaluasi() {
     </div>
   `;
 
-  // Render Table Rows
   document.getElementById('evaluasiTableBody').innerHTML = rowsData.map(r => `
     <tr class="hover:bg-slate-50">
       <td class="py-3 px-4 font-semibold text-slate-700">${escapeHtml(r.desa)}</td>
