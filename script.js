@@ -1,7 +1,7 @@
 // ==========================================
 // KONFIGURASI URL GOOGLE APPS SCRIPT
 // ==========================================
-const currentGasUrl = "https://script.google.com/macros/s/AKfycbxpL003A0PxiFIZe2KW1PrhWMS_dM-n4jTx0HlcdOt6_y-W9FWJ6Ihs65SR8ebg9ISn/exec";
+const currentGasUrl = "https://script.google.com/macros/s/AKfycbzmcClfdGH-LiQ144JMkIs53arcaH4eDzKaogCDTmUsunFOWBP7GQiqc8Yau58RdJAL/exec";
 
 // Global State
 let appData = {
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (dateInput && !dateInput.value) dateInput.value = todayStr;
 });
 
-// Helper Format Tanggal Indonesia (Hari, Tanggal Bulan Tahun)
+// Helper Format Tanggal Indonesia
 function formatDateIndo(dateStr) {
     if (!dateStr) return '-';
     try {
@@ -307,7 +307,6 @@ function openPresensiModal(activityId, activityName) {
     document.getElementById("presensiModalTitle").textContent = `Presensi: ${activityName}`;
     document.getElementById("presensiModalSub").textContent = "Pilih wilayah kelompok untuk input atau edit data kehadiran.";
     
-    // Populate dropdown desa unik
     const desaSet = [...new Set(appData.wilayah.map(w => w.Desa))];
     const desaSelect = document.getElementById("presensiDesaSelect");
     desaSelect.innerHTML = desaSet.map(d => `<option value="${d}">${d}</option>`).join("");
@@ -333,7 +332,6 @@ function onPresensiKelompokChange() {
     const desa = document.getElementById("presensiDesaSelect").value;
     const kelompok = document.getElementById("presensiKelompokSelect").value;
     
-    // Cek apakah presensi untuk aktivitas & kelompok ini sudah ada
     const existing = appData.presensi.find(p => p.ActivityId === activeActivityIdForPresensi && p.Desa === desa && p.Kelompok === kelompok);
     const notice = document.getElementById("existingStatusNotice");
     
@@ -377,7 +375,6 @@ async function submitPresensiData() {
     try {
         await callGasBackend(payload);
         
-        // Update local state (Upsert)
         const idx = appData.presensi.findIndex(p => p.ActivityId === activeActivityIdForPresensi && p.Desa === desa && p.Kelompok === kelompok);
         if (idx > -1) {
             appData.presensi[idx].Hadir = hadir;
@@ -397,17 +394,19 @@ async function submitPresensiData() {
 }
 
 // ==========================================
-// MODUL 2: PENYAPAAN (4 REKOMENDASI PER DESA & TOTAL BESAR DI SAMPING)
+// MODUL 2: PENYAPAAN (SORTING KECIL KE BESAR, REKOMENDASI DI ATAS, TURUN KE BAWAH)
 // ==========================================
 function renderPenyapaan() {
     const container = document.getElementById("penyapaanGridContainer");
     if (!container) return;
 
-    // Hitung frekuensi disapa per kelompok dari riwayat penyapaan (status === "Sapa")
+    // Hitung frekuensi disapa per kelompok
     const freqMap = {};
     appData.penyapaan.forEach(p => {
-        if (p.Status === "Sapa") {
-            const key = `${p.Desa}_${p.Kelompok}`;
+        if ((p.Status || p.status) === "Sapa") {
+            const d = p.Desa || p.desa;
+            const k = p.Kelompok || p.kelompok;
+            const key = `${d}_${k}`;
             freqMap[key] = (freqMap[key] || 0) + 1;
         }
     });
@@ -417,32 +416,36 @@ function renderPenyapaan() {
     container.innerHTML = desaList.map(desa => {
         const kelList = appData.wilayah.filter(w => w.Desa === desa);
         
-        // Urutkan kelompok berdasarkan frekuensi disapa terkecil, ambil tepat 4 teratas sebagai rekomendasi
+        // Urutkan dari jumlah disapa terkecil ke terbesar (4 teratas otomatis rekomendasi di atas, sisanya turun ke bawah)
         const sortedKel = [...kelList].sort((a, b) => {
             const countA = freqMap[`${desa}_${a.Kelompok}`] || 0;
             const countB = freqMap[`${desa}_${b.Kelompok}`] || 0;
-            return countA - countB;
+            if (countA !== countB) {
+                return countA - countB;
+            }
+            return a.Kelompok.localeCompare(b.Kelompok);
         });
-        const recommendedKelSet = new Set(sortedKel.slice(0, 4).map(k => k.Kelompok));
+
+        // 4 teratas sebagai rekomendasi
+        const recommendedSet = new Set(sortedKel.slice(0, 4).map(k => k.Kelompok));
 
         return `
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                 <div class="border-b pb-3 flex justify-between items-center">
                     <h3 class="font-bold text-lg text-slate-800">${desa}</h3>
-                    <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-full">4 Rekomendasi Teratas</span>
+                    <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 font-semibold rounded-full">Diurutkan (Rekomendasi di Atas)</span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    ${kelList.map(k => {
-                        const isRec = recommendedKelSet.has(k.Kelompok);
+                    ${sortedKel.map(k => {
+                        const isRec = recommendedSet.has(k.Kelompok);
                         const count = freqMap[`${desa}_${k.Kelompok}`] || 0;
                         return `
                             <div class="p-4 rounded-xl border ${isRec ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/50'} flex flex-col justify-between space-y-3 relative">
                                 ${isRec ? '<span class="absolute top-2 right-2 text-xs bg-amber-400 text-white px-2.5 py-0.5 rounded-full font-bold shadow-xs">⭐ Rekomendasi</span>' : ''}
-                                <div class="flex justify-between items-start">
+                                <div class="flex justify-between items-start pt-1">
                                     <div class="pr-2">
                                         <h4 class="font-bold text-slate-800 text-sm mb-0.5">${k.Kelompok}</h4>
                                     </div>
-                                    <!-- Total Disapa di samping kanan grid kelompok agar tampak besar dan jelas -->
                                     <div class="flex flex-col items-center justify-center bg-white border border-emerald-200 rounded-xl px-2.5 py-1 shadow-xs min-w-[50px]">
                                         <span class="text-[10px] uppercase font-bold text-emerald-600 leading-none">Disapa</span>
                                         <span class="text-lg font-extrabold text-emerald-700 leading-tight">${count}x</span>
@@ -503,12 +506,22 @@ async function submitPenyapaanData() {
     try {
         await callGasBackend(payload);
         
-        // Push to local state
-        items.forEach(item => {
-            appData.penyapaan.push(item);
+        // Update local state (Upsert to prevent duplicate)
+        items.forEach(newItem => {
+            const existingIdx = appData.penyapaan.findIndex(p => 
+                (p.NamaKegiatan || p.namaKegiatan) === namaKegiatan && 
+                (p.Tanggal || p.tanggal) === tanggal && 
+                (p.Desa || p.desa) === newItem.desa && 
+                (p.Kelompok || p.kelompok) === newItem.kelompok
+            );
+            if (existingIdx > -1) {
+                appData.penyapaan[existingIdx].Status = newItem.status;
+            } else {
+                appData.penyapaan.push(newItem);
+            }
         });
 
-        alert("Data penyapaan berhasil disimpan dan terekap!");
+        alert("Data penyapaan berhasil disimpan dan terekap (Anti-Duplikat)!");
         renderPenyapaan();
         renderRekap();
         if (isAdmin) {
@@ -527,7 +540,6 @@ function renderRekap() {
     const container = document.getElementById("rekapContainer");
     if (!container) return;
 
-    // Kelompokkan penyapaan berdasarkan NamaKegiatan & Tanggal dari appData.penyapaan
     const sessionMap = {};
     appData.penyapaan.forEach(p => {
         const kegiatanName = p.NamaKegiatan || p.namaKegiatan || 'Kegiatan Penyapaan Umum';
@@ -556,7 +568,6 @@ function renderRekap() {
 
     container.innerHTML = sessions.map(sess => {
         const formattedDate = formatDateIndo(sess.tanggal);
-        // Kelompokkan per desa untuk pill hijau muda
         const perDesa = {};
         sess.disapaList.forEach(item => {
             if (item.desa) {
@@ -593,7 +604,7 @@ function renderRekap() {
 }
 
 // ==========================================
-// MODUL 4: EVALUASI (KHUSUS ADMIN) DENGAN FILTER KEGIATAN & RINGKASAN TOTAL
+// MODUL 4: EVALUASI (KHUSUS ADMIN)
 // ==========================================
 function populateEvaluasiActivityFilter() {
     const filterSelect = document.getElementById("evaluasiActivityFilter");
@@ -612,7 +623,6 @@ function renderEvaluasi() {
 
     const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
 
-    // Hitung total disapa per kelompok dari seluruh penyapaan
     const freqMap = {};
     appData.penyapaan.forEach(p => {
         if ((p.Status || p.status) === "Sapa") {
@@ -623,13 +633,11 @@ function renderEvaluasi() {
         }
     });
 
-    // Filter presensi berdasarkan aktivitas yang dipilih
     let filteredPresensi = appData.presensi;
     if (filterActivityId !== "ALL") {
         filteredPresensi = appData.presensi.filter(pr => (pr.ActivityId || pr.activityId) === filterActivityId);
     }
 
-    // Hitung total Hadir, Izin, Alfa per kelompok berdasarkan presensi terfilter
     const presensiMap = {};
     let sumHadir = 0;
     let sumIzin = 0;
@@ -654,7 +662,6 @@ function renderEvaluasi() {
         sumAlfa += a;
     });
 
-    // Update summary cards di bagian atas
     document.getElementById("summaryTotalHadir").textContent = sumHadir;
     document.getElementById("summaryTotalIzin").textContent = sumIzin;
     document.getElementById("summaryTotalAlfa").textContent = sumAlfa;
