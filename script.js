@@ -2,7 +2,7 @@
  * FRONTEND LOGIC: OS Studio Karanganyar Barat
  * Ganti GAS_WEB_APP_URL dengan URL Deployment Web App Google Apps Script Anda.
  */
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/GANTI_DENGAN_ID_DEPLOYMENT_ANDA/exec';
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxp6XUW3_wWvauoQLZFMD39zIp_4PO6zrT_jJ1Q8kTETStPYNuv1XFKYhqP_BbfGU0q/exec';
 
 // State Global Aplikasi
 const state = {
