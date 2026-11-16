@@ -672,7 +672,6 @@ function renderEvaluasi() {
     const filterActivityId = document.getElementById("evaluasiActivityFilter")?.value || "ALL";
     const filterDesa = document.getElementById("evaluasiDesaFilter")?.value || "ALL";
 
-    // Indikator Kelompok Belum Mengisi Presensi beserta Jumlah Totalnya (Responsif di HP & Desktop)
     const missingWrapper = document.getElementById("missingPresensiWrapper");
     const missingList = document.getElementById("missingPresensiList");
     const missingTitle = document.getElementById("missingPresensiTitle");
@@ -736,10 +735,6 @@ function renderEvaluasi() {
     }
 
     const presensiMap = {};
-    let sumHadir = 0;
-    let sumIzin = 0;
-    let sumAlfa = 0;
-
     filteredPresensi.forEach(pr => {
         const desaName = pr.Desa || pr.desa;
         const kelName = pr.Kelompok || pr.kelompok;
@@ -765,17 +760,36 @@ function renderEvaluasi() {
         presensiMap[key].hadirPi += hPi;
         presensiMap[key].izinPi += iPi;
         presensiMap[key].alfaPi += aPi;
+    });
 
-        sumHadir += (hPa + hPi);
-        sumIzin += (iPa + iPi);
-        sumAlfa += (aPa + aPi);
+    // Ambil wilayah berdasarkan filter desa yang dipilih
+    const displayedWilayah = filterDesa === "ALL" ? appData.wilayah : appData.wilayah.filter(w => w.Desa === filterDesa);
+
+    // Hitung akumulasi untuk kartu ringkasan di atas berdasarkan wilayah yang sedang difilter
+    let sumHadir = 0;
+    let sumIzin = 0;
+    let sumAlfa = 0;
+    let sumJumlahTotal = 0;
+
+    displayedWilayah.forEach(w => {
+        const key = `${w.Desa}_${w.Kelompok}`;
+        const p = presensiMap[key] || { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
+        
+        const totalHadirKelompok = p.hadirPa + p.hadirPi;
+        const totalIzinKelompok = p.izinPa + p.izinPi;
+        const totalAlfaKelompok = p.alfaPa + p.alfaPi;
+        const totalKelompok = totalHadirKelompok + totalIzinKelompok + totalAlfaKelompok;
+
+        sumHadir += totalHadirKelompok;
+        sumIzin += totalIzinKelompok;
+        sumAlfa += totalAlfaKelompok;
+        sumJumlahTotal += totalKelompok;
     });
 
     document.getElementById("summaryTotalHadir").textContent = sumHadir;
     document.getElementById("summaryTotalIzin").textContent = sumIzin;
     document.getElementById("summaryTotalAlfa").textContent = sumAlfa;
-
-    const displayedWilayah = filterDesa === "ALL" ? appData.wilayah : appData.wilayah.filter(w => w.Desa === filterDesa);
+    document.getElementById("summaryJumlahTotal").textContent = sumJumlahTotal;
 
     if (displayedWilayah.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">Tidak ada data wilayah yang sesuai filter.</td></tr>`;
@@ -787,7 +801,6 @@ function renderEvaluasi() {
         const totalDisapa = freqMap[key] || 0;
         const pres = presensiMap[key] || { hadirPa: 0, izinPa: 0, alfaPa: 0, hadirPi: 0, izinPi: 0, alfaPi: 0 };
         
-        // Menghitung jumlah total keseluruhan baris (Hadir + Izin + Alfa untuk Putra & Putri)
         const rowTotal = pres.hadirPa + pres.izinPa + pres.alfaPa + pres.hadirPi + pres.izinPi + pres.alfaPi;
 
         return `
