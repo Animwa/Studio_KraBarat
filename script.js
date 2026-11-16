@@ -13,7 +13,7 @@ const MASTER_WILAYAH = {
 // ================= KONFIGURASI URL WEB APP APPS SCRIPT =================
 // Silakan paste URL Web App Google Apps Script Anda di dalam tanda kutip di bawah ini,
 // atau isi langsung melalui tombol roda gigi (settings) di pojok kanan atas aplikasi.
-let currentGasUrl = "https://script.google.com/macros/s/AKfycbzwfXbBxkoGrqpWn6skzNRd_PoufSHikYZUsjI3Pw2gRShxHviyWWabYzcTtcuUQN7G/exec" || localStorage.getItem('OS_GAS_URL') || '';
+let currentGasUrl = "https://script.google.com/macros/s/AKfycbzT9lNmFv6Q0Uo468VP8TBKw7I3CMjP54mvW6p5ZtEMQ8TTyy9GJMTsE4GIVuX84BwR/exec" || localStorage.getItem('OS_GAS_URL') || '';
 
 let isAdmin = sessionStorage.getItem('OS_IS_ADMIN') === 'true';
 let logoClickCount = 0;
@@ -447,18 +447,182 @@ function renderPenyapaanGrid() {
     const filterSelect = document.getElementById('filterDesaSelect');
     const filterDesa = filterSelect ? filterSelect.value : 'ALL';
 
+    // Hitung rekomendasi: tepat 4 kelompok dengan penyapaan paling sedikit di tiap desa
     const recommendationMap = {}; 
     Object.keys(MASTER_WILAYAH).forEach(desa => {
-        let minCount = Infinity;
-        let minKelList = [];
-        MASTER_WILAYAH[desa].forEach(kel => {
-            const count = appPenyapaanSummary[`${desa}|${kel}`] || 0;
-            if (count < minCount) {
-                minCount = count;
-                minKelList = [kel];
-            } else if (count === minCount) {
-                minKelList.push(kel);
-            }
+        let kelWithCounts = MASTER_WILAYAH[desa].map(kel => ({
+            kelompok: kel,
+            count: appPenyapaanSummary[`${desa}|${kel}`] || 0
+        }));
+
+        // Urutkan dari penyapaan terkecil, ambil maksimal 4 teratas
+        kelWithCounts.sort((a, b) => a.count - b.count);
+        recommendationMap[desa] = kelWithCounts.slice(0, 4).map(item => item.kelompok);
+    });
+
+    const filteredDesas = filterDesa === 'ALL' ? Object.keys(MASTER_WILAYAH) : [filterDesa];
+
+    // Bagian Atas: Input Nama Kegiatan & Tanggal Penyapaan untuk Rekap Harian
+    let headerHtml = `
+        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex flex-col sm:flex-row gap-4 items-center justify-between shadow-2xs">
+            <div class="w-full sm:w-auto flex-grow">
+                <label class="block text-xs font-semibold text-indigo-900 mb-1">Nama Kegiatan Penyapaan:</label>
+                <input type="text" id="penyapaanNamaKegiatan" value="Sapa Wilayah Rutin" placeholder="Misal: Sapa Warga Pekanan" class="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div class="w-full sm:w-48">
+                <label class="block text-xs font-semibold text-indigo-900 mb-1">Tanggal Penyapaan:</label>
+                <input type="date" id="penyapaanTanggalInput" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3.5 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = headerHtml + filteredDesas.map(desa => {
+        const kelList = MASTER_WILAYAH[desa];
+        const recList = recommendationMap[desa] || [];
+
+        return `
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900 text-base sm:text-lg flex items-center">
+                        <i class="fa-solid fa-map-location-dot text-indigo-600 mr-2"></i> Desa ${desa}
+                    </h3>
+                    <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">${kelList.length} Kelompok (4 Rekomendasi ⭐)</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    ${kelList.map(kel => {
+                        const key = `${desa}|${kel}`;
+                        const totalDisapa = appPenyapaanSummary[key] || 0;
+                        const isRec = recList.includes(kel);
+                        const isSapased = appGlobalPenyapaanState[key] !== undefined ? appGlobalPenyapaanState[key] : false;
+
+                        return `
+                            <div class="p-4 rounded-xl border ${isSapased ? 'bg-indigo-50/60 border-indigo-300' : 'bg-slate-50/50 border-slate-200'} transition-all flex flex-col justify-between space-y-3">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-sm">${kel}</h4>
+                                        <p class="text-xs text-slate-500 mt-0.5">Total Disapa: <strong class="text-indigo-600">${totalDisapa}x</strong></p>
+                                    </div>
+                                    ${isRec ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[10px] font-semibold flex items-center space-x-1 shadow-2xs" title="Top 4 Rekomendasi Teratas"><i class="fa-solid fa-star text-amber-500 text-[9px]"></i><span>Rekomendasi</span></span>' : ''}
+                                </div>
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                    <span class="text-[11px] font-medium ${isSapased ? 'text-indigo-700 font-semibold' : 'text-slate-400'}">${isSapased ? 'Terpilih Disapa' : 'Belum Disapa'}</span>
+                                    ${isAdmin ? `
+                                        <button type="button" onclick="togglePenyapaanState('${key}')" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all ${isSapased ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}">
+                                            ${isSapased ? '<i class="fa-solid fa-check mr-1"></i> Sapa' : 'Sapa'}
+                                        </button>
+                                    ` : `
+                                        <span class="text-[11px] text-slate-400 italic">${isSapased ? 'Disapa' : '-'}</span>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    updateSavePenyapaanBar();
+}
+
+async function submitBulkPenyapaan() {
+    const selectedKeys = Object.keys(appGlobalPenyapaanState).filter(k => appGlobalPenyapaanState[k] === true);
+    if (selectedKeys.length === 0) {
+        showToast("Tidak ada kelompok yang dipilih untuk disapa.", "error");
+        return;
+    }
+
+    const namaKegiatanInput = document.getElementById('penyapaanNamaKegiatan');
+    const tanggalInput = document.getElementById('penyapaanTanggalInput');
+    
+    const namaKegiatan = namaKegiatanInput ? namaKegiatanInput.value.trim() : "Sapa Wilayah Rutin";
+    const tanggal = tanggalInput ? tanggalInput.value : new Date().toISOString().split('T')[0];
+
+    try {
+        showLoader("Menyimpan hasil penyapaan massal & merekap ke riwayat...");
+        await callBackend('saveBulkPenyapaan', { selectedKeys, namaKegiatan, tanggal });
+        hideLoader();
+        appGlobalPenyapaanState = {};
+        showToast("Hasil penyapaan berhasil direkap dan disimpan ke Google Sheets!", "success");
+        loadAllAppData();
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal menyimpan penyapaan: " + err.message, "error");
+    }
+}
+
+// ================= 3. MODUL PRESENSI & EDIT TERINTEGRASI =================
+async function openSessionDetail(sessionId) {
+    const sess = appSessions.find(s => s.id == sessionId);
+    if (!sess) return;
+    activeSessionIdForPresensi = sessionId;
+
+    document.getElementById('modalSessionDate').innerText = sess.tanggal;
+    document.getElementById('modalSessionTitle').innerText = sess.nama;
+    document.getElementById('modalSessionMateriPenyampai').innerText = `Materi: ${sess.materi || '-'} | Penyampai: ${sess.penyampai || '-'}`;
+
+    try {
+        showLoader("Memuat data presensi...");
+        const existingPresensi = await callBackend('getSessionPresensi', { sessionId });
+        hideLoader();
+
+        currentPresensiData = {};
+        Object.keys(MASTER_WILAYAH).forEach(desa => {
+            MASTER_WILAYAH[desa].forEach(kel => {
+                const key = `${desa}|${kel}`;
+                // Jika sudah ada data di database, gunakan nilainya (Edit Mode / Update), default 'Hadir'
+                currentPresensiData[key] = existingPresensi[key] || 'Hadir';
+            });
+        });
+
+        renderPresensiFormList();
+        document.getElementById('sessionDetailModal').classList.remove('hidden');
+    } catch (err) {
+        hideLoader();
+        showToast("Gagal memuat presensi: " + err.message, "error");
+    }
+}
+
+function renderPresensiFormList() {
+    const container = document.getElementById('presensiKelompokListContainer');
+    if (!container) return;
+    let totalCount = 0;
+
+    container.innerHTML = Object.keys(MASTER_WILAYAH).map(desa => {
+        const kelList = MASTER_WILAYAH[desa];
+        totalCount += kelList.length;
+
+        return `
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 class="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider text-indigo-600 flex items-center">
+                    <i class="fa-solid fa-location-dot mr-1.5"></i> Desa ${desa}
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    ${kelList.map(kel => {
+                        const key = `${desa}|${kel}`;
+                        const status = currentPresensiData[key] || 'Hadir';
+                        return `
+                            <div class="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
+                                <div>
+                                    <span class="text-xs font-semibold text-slate-700 block">${kel}</span>
+                                    <span class="text-[10px] text-slate-400">Status: <strong class="text-indigo-600">${status}</strong></span>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Hadir')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Hadir' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">Hadir</button>
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Izin')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Izin' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">Izin</button>
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Alfa')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Alfa' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">Alfa</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const countInfo = document.getElementById('presensiCountInfo');
+    if (countInfo) countInfo.innerText = `${totalCount} kelompok terdata (Mode Update / Edit)`;
+}
         });
         recommendationMap[desa] = minKelList;
     });
