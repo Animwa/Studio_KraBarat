@@ -1,7 +1,7 @@
 // ==========================================
 // KONFIGURASI URL GOOGLE APPS SCRIPT
 // ==========================================
-const currentGasUrl = "https://script.google.com/macros/s/AKfycbytYYNEw5JVjVBqScuvpk7rde8iNWQvtfVNKIiIGBOV-HWUdmUweyPX0KHQ6MjV6v8f/exec";
+const currentGasUrl = "https://script.google.com/macros/s/AKfycbz8nI8jg-ZX-iuo2y8w6MT-kA4FSUYJnB4dNXJkJDQs_tQHKQ1pkMDZYDXk5ElLcv8Z/exec";
 
 // Global State
 let appData = {
@@ -400,7 +400,7 @@ async function submitPresensiData() {
 }
 
 // ==========================================
-// MODUL 2: PENYAPAAN (DENGAN STATUS TERSIMPAN HARI INI UNTUK VIEWER & UPSERT)
+// MODUL 2: PENYAPAAN (PERSISTENT STATE & TANDA TERSIMPAN DI SAMPING OPSI)
 // ==========================================
 function renderPenyapaan() {
     const container = document.getElementById("penyapaanGridContainer");
@@ -467,22 +467,27 @@ function renderPenyapaan() {
                                 <div class="flex justify-between items-start pt-1">
                                     <div class="pr-2">
                                         <h4 class="font-bold text-slate-800 text-sm mb-0.5">${k.Kelompok}</h4>
-                                        ${isSapa ? '<span class="inline-block mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md"><i class="fa-solid fa-check mr-1"></i> Tersapa Hari Ini</span>' : ''}
                                     </div>
                                     <div class="flex flex-col items-center justify-center bg-white border border-emerald-200 rounded-xl px-2.5 py-1 shadow-xs min-w-[50px]">
                                         <span class="text-[10px] uppercase font-bold text-emerald-600 leading-none">Disapa</span>
                                         <span class="text-lg font-extrabold text-emerald-700 leading-tight">${count}x</span>
                                     </div>
                                 </div>
-                                <div class="flex items-center space-x-2 pt-2 border-t border-slate-200/60">
-                                    <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-700">
-                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Sapa" class="sapa-radio text-emerald-600" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
-                                        <span>Sapa</span>
-                                    </label>
-                                    <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-700">
-                                        <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Belum Sapa" class="sapa-radio text-slate-500" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${!isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
-                                        <span>Belum</span>
-                                    </label>
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                    <div class="flex items-center space-x-2">
+                                        <label class="flex items-center space-x-1 cursor-pointer text-xs font-medium text-slate-700">
+                                            <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Sapa" class="sapa-radio text-emerald-600" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
+                                            <span>Sapa</span>
+                                        </label>
+                                        <label class="flex items-center space-x-1 cursor-pointer text-xs font-medium text-slate-700">
+                                            <input type="radio" name="sapa_${desa}_${k.Kelompok}" value="Belum Sapa" class="sapa-radio text-slate-500" data-desa="${desa}" data-kelompok="${k.Kelompok}" ${!isSapa ? 'checked' : ''} ${!isAdmin ? 'disabled' : ''}>
+                                            <span>Belum</span>
+                                        </label>
+                                    </div>
+                                    <!-- Tanda Status Tersimpan di Bagian Samping Opsi -->
+                                    <div>
+                                        ${isSapa ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-md shadow-xs"><i class="fa-solid fa-check mr-0.5"></i> Tersimpan</span>' : '<span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-[10px] font-medium rounded-md">Belum</span>'}
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -529,7 +534,7 @@ async function submitPenyapaanData() {
     try {
         await callGasBackend(payload);
         
-        // Update local state secara cerdas (Upsert / Update jika sudah ada, Insert jika baru)
+        // Update local state secara cerdas (Upsert) tanpa membuat entri duplikat
         items.forEach(newItem => {
             const existingIdx = appData.penyapaan.findIndex(p => 
                 (p.NamaKegiatan || p.namaKegiatan || "").trim() === namaKegiatan && 
