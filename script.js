@@ -11,8 +11,8 @@ const MASTER_WILAYAH = {
 };
 
 // ================= KONFIGURASI URL WEB APP APPS SCRIPT =================
-// Letakkan URL Web App Google Apps Script Anda di dalam tanda kutip di bawah ini:
-// Contoh: "https://script.google.com/macros/s/AKfycbz.../exec"
+// Silakan paste URL Web App Google Apps Script Anda di dalam tanda kutip di bawah ini,
+// atau isi langsung melalui tombol roda gigi (settings) di pojok kanan atas aplikasi.
 let currentGasUrl = "https://script.google.com/macros/s/AKfycbzwfXbBxkoGrqpWn6skzNRd_PoufSHikYZUsjI3Pw2gRShxHviyWWabYzcTtcuUQN7G/exec" || localStorage.getItem('OS_GAS_URL') || '';
 
 let isAdmin = sessionStorage.getItem('OS_IS_ADMIN') === 'true';
@@ -31,10 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSecretTriggers();
     
     // Cek apakah URL GAS sudah diatur
-    if (currentGasUrl) {
+    if (currentGasUrl && currentGasUrl !== "https://script.google.com/macros/s/AKfycbw.../exec") {
         loadAllAppData();
     } else {
-        // Otomatis buka modal konfigurasi jika URL belum diisi
         setTimeout(() => {
             openConfigModal();
             showToast("Silakan masukkan URL Web App Google Apps Script Anda.", "info");
@@ -50,16 +49,14 @@ function initAuthUI() {
     const adminAddContainer = document.getElementById('adminAddSessionContainer');
 
     if (isAdmin) {
-        adminBadge.classList.remove('hidden');
-        adminBadge.classList.add('flex');
-        navEvaluasi.classList.remove('hidden');
-        mobNavEvaluasi.classList.remove('hidden');
+        if (adminBadge) { adminBadge.classList.remove('hidden'); adminBadge.classList.add('flex'); }
+        if (navEvaluasi) navEvaluasi.classList.remove('hidden');
+        if (mobNavEvaluasi) mobNavEvaluasi.classList.remove('hidden');
         if (adminAddContainer) adminAddContainer.classList.remove('hidden');
     } else {
-        adminBadge.classList.add('hidden');
-        adminBadge.classList.remove('flex');
-        navEvaluasi.classList.add('hidden');
-        mobNavEvaluasi.classList.add('hidden');
+        if (adminBadge) { adminBadge.classList.add('hidden'); adminBadge.classList.remove('flex'); }
+        if (navEvaluasi) navEvaluasi.classList.add('hidden');
+        if (mobNavEvaluasi) mobNavEvaluasi.classList.add('hidden');
         if (adminAddContainer) adminAddContainer.classList.add('hidden');
     }
 }
@@ -89,11 +86,20 @@ function setupSecretTriggers() {
     });
 }
 
-function openAdminLoginModal() { document.getElementById('adminLoginModal').classList.remove('hidden'); }
-function closeAdminLoginModal() { document.getElementById('adminLoginModal').classList.add('hidden'); document.getElementById('adminPasswordInput').value = ''; }
+function openAdminLoginModal() { 
+    const m = document.getElementById('adminLoginModal');
+    if (m) m.classList.remove('hidden'); 
+}
+function closeAdminLoginModal() { 
+    const m = document.getElementById('adminLoginModal');
+    if (m) m.classList.add('hidden'); 
+    const p = document.getElementById('adminPasswordInput');
+    if (p) p.value = ''; 
+}
 
 async function verifyAdminPassword() {
-    const pass = document.getElementById('adminPasswordInput').value;
+    const passInput = document.getElementById('adminPasswordInput');
+    const pass = passInput ? passInput.value : '';
     if (!pass) { showToast("Masukkan kata sandi admin!", "error"); return; }
     
     try {
@@ -108,7 +114,7 @@ async function verifyAdminPassword() {
         renderPenyapaanGrid();
     } catch (err) {
         hideLoader();
-        showToast("Kata sandi admin salah!", "error");
+        showToast(err.message || "Kata sandi admin salah!", "error");
     }
 }
 
@@ -177,9 +183,8 @@ function saveGasUrl() {
         return; 
     }
     
-    // Validasi format dasar URL Apps Script
     if (!url.includes('script.google.com')) {
-        showToast("Format URL Google Apps Script tampak kurang valid. Pastikan menyalin link Web App yang benar.", "error");
+        showToast("Format URL Google Apps Script tampak kurang valid.", "error");
     }
 
     currentGasUrl = url;
@@ -232,7 +237,7 @@ async function callBackend(action, payload = {}) {
         try {
             result = JSON.parse(textRes);
         } catch (e) {
-            throw new Error("Respon server bukan format JSON yang valid. Periksa deployment Web App GAS Anda.");
+            throw new Error("Respon server bukan format JSON yang valid. Pastikan Web App dipublikasikan dengan akses 'Anyone'.");
         }
 
         if (!result.success) throw new Error(result.error || "Gagal memproses di server.");
@@ -267,7 +272,7 @@ async function loadAllAppData() {
         hideLoader();
     } catch (err) {
         hideLoader();
-        showToast("Gagal memuat data dari Sheets: " + err.message, "error");
+        showToast("Gagal memuat data: " + err.message, "error");
     }
 }
 
@@ -395,9 +400,9 @@ function renderPresensiFormList() {
                             <div class="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
                                 <span class="text-xs font-semibold text-slate-700">${kel}</span>
                                 <div class="flex items-center space-x-1">
-                                    <button onclick="setPresensiStatus('${key}', 'Hadir')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Hadir' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">H</button>
-                                    <button onclick="setPresensiStatus('${key}', 'Izin')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Izin' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">I</button>
-                                    <button onclick="setPresensiStatus('${key}', 'Alfa')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Alfa' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">A</button>
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Hadir')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Hadir' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">H</button>
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Izin')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Izin' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">I</button>
+                                    <button type="button" onclick="setPresensiStatus('${key}', 'Alfa')" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${status === 'Alfa' ? 'bg-red-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">A</button>
                                 </div>
                             </div>
                         `;
@@ -491,7 +496,7 @@ function renderPenyapaanGrid() {
                                 <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
                                     <span class="text-[11px] font-medium ${isSapased ? 'text-indigo-700 font-semibold' : 'text-slate-400'}">${isSapased ? 'Terpilih Disapa' : 'Belum Disapa'}</span>
                                     ${isAdmin ? `
-                                        <button onclick="togglePenyapaanState('${key}')" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all ${isSapased ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}">
+                                        <button type="button" onclick="togglePenyapaanState('${key}')" class="px-3 py-1 rounded-lg text-xs font-semibold transition-all ${isSapased ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}">
                                             ${isSapased ? '<i class="fa-solid fa-check mr-1"></i> Sapa' : 'Sapa'}
                                         </button>
                                     ` : `
@@ -682,10 +687,3 @@ function filterEvaluasiTable() {
         row.style.display = text.includes(query) ? '' : 'none';
     });
 }
-```
-eof
-
-### Ringkasan Pembaruan:
-1. **Modal Konfigurasi URL GAS**: Aplikasi sekarang secara otomatis mendeteksi jika URL Web App belum diisi dan meminta Anda menempelkan URL tersebut lewat kotak dialog konfigurasi.
-2. **Penyimpanan Lokal (`localStorage`)**: URL Web App yang Anda masukkan disimpan dengan aman di browser lokal Anda sehingga Anda tidak perlu mengetiknya ulang setiap membuka halaman.
-3. **Validasi & Penanganan Error Korporat**: Ditambahkan validasi respon JSON dan penanganan error jika endpoint GAS belum aktif atau belum di-deploy sebagai Web App.
